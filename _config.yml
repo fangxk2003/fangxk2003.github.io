@@ -38,8 +38,8 @@ google_verify: "google-site-verification=o54DQGCj61plY-42orVimXsrWDh_Cyg6mIL8l1J
 links:
   - title: About Me
     url: /
-  - title: Publications
-    url: /publications/
+  # - title: Publications
+  #   url: /publications/
   - title: Awards
     url: /awards/
   - title: Hobbies
