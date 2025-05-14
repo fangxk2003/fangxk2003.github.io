@@ -1,5 +1,5 @@
 title: "Xingkai Fang"
-email: your@email.com
+email: fangxk2003@gmail.com
 description: "Biomedical Engineering | Medical Imaging"
 url: "https://fangxk2003.github.io"
 baseurl: ""  # for GitHub Pages, keep it blank
@@ -7,6 +7,8 @@ repository: "fangxk2003/fangxk2003.github.io"
 
 # Build settings
 remote_theme: "mmistakes/minimal-mistakes"
+# theme: "mmistakes/minimal-mistakes"
+
 plugins:
   - jekyll-include-cache
 

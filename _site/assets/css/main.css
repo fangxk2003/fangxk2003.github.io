@@ -1,4 +1,3 @@
-/* ========================================================================== Default skin ========================================================================== */
 /* Copyright comment */
 /*!
  * Minimal Mistakes Jekyll Theme 4.27.1 by Michael Rose
@@ -1309,3 +1308,4 @@ body { display: -webkit-box; display: -ms-flexbox; display: flex; min-height: 10
   .page__hero-caption a { color: #000 !important; }
   /* Hide the following elements on print ========================================================================== */
   .masthead, .toc, .page__share, .page__related, .pagination, .ads, .page__footer, .page__comments-form, .author__avatar, .author__content, .author__urls-wrapper, .nav__list, .sidebar, .adsbygoogle { display: none !important; height: 1px !important; } }
+body { font-size: 0.9rem; }
