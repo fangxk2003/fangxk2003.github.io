@@ -7,6 +7,7 @@ repository: "fangxk2003/fangxk2003.github.io"
 
 # Build settings
 remote_theme: "mmistakes/minimal-mistakes"
+markdown: kramdown
 # theme: "mmistakes/minimal-mistakes"
 
 plugins:
