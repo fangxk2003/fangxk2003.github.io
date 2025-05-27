@@ -3,4 +3,4 @@ layout: single
 title: Blog
 ---
 
-[title_250520](entry/B2505201807.md)
+[A Math Game Related to Information Encoding](entry/B2505201807.md)
