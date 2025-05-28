@@ -10,7 +10,7 @@
   <head>
     <meta charset="utf-8">
 
-<!-- begin _includes/seo.html --><title>背景 - Xingkai Fang</title>
+<!-- begin _includes/seo.html --><title>A Math Game Related to Information Encoding - Xingkai Fang</title>
 <meta name="description" content="Biomedical Engineering       Medical Imaging">
 
 
@@ -21,7 +21,7 @@
 <meta property="og:type" content="website">
 <meta property="og:locale" content="en_US">
 <meta property="og:site_name" content="Xingkai Fang">
-<meta property="og:title" content="背景">
+<meta property="og:title" content="A Math Game Related to Information Encoding">
 <meta property="og:url" content="http://localhost:4000/blog/entry/B2505201807.html">
 
 
@@ -85,7 +85,7 @@ MathJax.Hub.Config({
 
 <!-- For all browsers -->
 <link rel="stylesheet" href="/assets/css/main.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.1/github-markdown-light.min.css">
+<link rel="stylesheet" href="/assets/css/github-markdown-light.min.css">
 <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@latest/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@latest/css/all.min.css"></noscript>
 
@@ -99,7 +99,7 @@ MathJax.Hub.Config({
 
   </head>
 
-  <body class="layout--splash" dir="ltr">
+  <body class="layout--single" dir="ltr">
     <nav class="skip-links">
   <ul>
     <li><a href="#site-nav" class="screen-reader-shortcut">Skip to primary navigation</a></li>
@@ -159,36 +159,55 @@ MathJax.Hub.Config({
     <div class="initial-content">
       
 
+
+
+
+
 <div id="main" role="main">
-  <article class="splash" itemscope itemtype="https://schema.org/CreativeWork">
-    <meta itemprop="headline" content="背景">
+  
+
+
+  <article class="page" itemscope itemtype="https://schema.org/CreativeWork">
+    <meta itemprop="headline" content="A Math Game Related to Information Encoding">
     
     
     
 
-    <section class="page__content" itemprop="text">
-      <h2 id="背景">背景</h2>
+    <div class="page__inner-wrap">
+      
+        <header>
+          <h1 id="page-title" class="page__title" itemprop="headline">
+            <a href="http://localhost:4000/blog/entry/B2505201807.html" itemprop="url">A Math Game Related to Information Encoding
+</a>
+          </h1>
+          
+
+
+        </header>
+      
+
+      <section class="page__content" itemprop="text">
+        
+        <h2 id="背景">背景</h2>
 
 <p>家教的孩子问了一道关于信息编码的游戏数学题，苦苦思索仅解决前两问，后通过多方渠道，明白了后两问。</p>
 
 <h2 id="题目原文">题目原文</h2>
 
-<blockquote>
-  <p>老师跟两位同学玩猜硬币的游戏，规则如下:</p>
+<p>老师跟两位同学玩猜硬币的游戏，规则如下:</p>
 
-  <p>老师一队，甲、乙两位同学一队，进行若干局游戏。每一局游戏，老师、甲和乙都各自选择硬币正反面中的一面盖住，再同时亮出自己的硬币。如果这三枚硬币都是正面或都是反面，则本局同学方获胜。一场游戏由若干局组成，在一场游戏开始之后，甲和乙就不得再进行任何形式的交流了，他们能获知的信息只有每一局中三人硬币正反面的情况。</p>
+<p>老师一队，甲、乙两位同学一队，进行若干局游戏。每一局游戏，老师、甲和乙都各自选择硬币正反面中的一面盖住，再同时亮出自己的硬币。如果这三枚硬币都是正面或都是反面，则本局同学方获胜。一场游戏由若干局组成，在一场游戏开始之后，甲和乙就不得再进行任何形式的交流了，他们能获知的信息只有每一局中三人硬币正反面的情况。</p>
 
-  <p>这个规则当然不利于同学，而且纯凭运气，没有什么趣味性。因此现在额外规定，在游戏开始后、第一局开始前增加一个环节,老师偷偷将自己接下来每一局要出什么全都告诉甲且老师必须如实执行。也就是说，同学甲从一开始就知道老师每一局要出什么。但此时游戏已经开始了，甲不能再跟乙进行任何交流，没法直接将老师的信息告知同学乙。</p>
+<p>这个规则当然不利于同学，而且纯凭运气，没有什么趣味性。因此现在额外规定，在游戏开始后、第一局开始前增加一个环节,老师偷偷将自己接下来每一局要出什么全都告诉甲且老师必须如实执行。也就是说，同学甲从一开始就知道老师每一局要出什么。但此时游戏已经开始了，甲不能再跟乙进行任何交流，没法直接将老师的信息告知同学乙。</p>
 
-  <p>现在同学甲和同学乙决定充分利用这个额外规定,在游戏开始前他们有充足的时间想个最大化利用这个规定的策略。请帮助他们设计策略，保证同学方:</p>
+<p>现在同学甲和同学乙决定充分利用这个额外规定,在游戏开始前他们有充足的时间想个最大化利用这个规定的策略。请帮助他们设计策略，保证同学方:</p>
 
-  <ol>
-    <li>在2局中赢1局</li>
-    <li>在5局中赢3局</li>
-    <li>在9局中赢6局</li>
-    <li>在13局中赢9局</li>
-  </ol>
-</blockquote>
+<ol>
+  <li>在2局中赢1局</li>
+  <li>在5局中赢3局</li>
+  <li>在9局中赢6局</li>
+  <li>在13局中赢9局</li>
+</ol>
 
 <h2 id="化归">化归</h2>
 
@@ -224,15 +243,13 @@ F有$2^{N^2}$种可能</p>
 
 <h3 id="5赢3策略">5赢3策略</h3>
 
-<blockquote>
-  <p>把5局分为1 + 3 + 1三组</p>
+<p>把5局分为1 + 3 + 1三组</p>
 
-  <p>甲先通过第一组告诉乙，第二组里比较多的颜色</p>
+<p>甲先通过第一组告诉乙，第二组里比较多的颜色</p>
 
-  <p>乙在第二组里只出这个颜色，如果第二组颜色全相同，赢3，那么第三组无所谓，0+3+0=3</p>
+<p>乙在第二组里只出这个颜色，如果第二组颜色全相同，赢3，那么第三组无所谓，0+3+0=3</p>
 
-  <p>如果第二组颜色并不完全相同，则赢2输1，必输的那一局告诉乙，第三组的颜色是什么 0+2+1=3</p>
-</blockquote>
+<p>如果第二组颜色并不完全相同，则赢2输1，必输的那一局告诉乙，第三组的颜色是什么 0+2+1=3</p>
 
 <p>为什么可以做到至少赢了一半多？这个方案<strong>没有固定哪些局传递信息，哪些局必胜</strong></p>
 
@@ -268,85 +285,61 @@ F有$2^{N^2}$种可能</p>
 
 <h3 id="9赢6策略">9赢6策略</h3>
 
-<blockquote>
-  <p>将9局分为1+3+4+1的分组</p>
-
-  <p>看3那组的形状，如果这3局颜色完全一样</p>
-
-  <blockquote>
-    <p>则甲第一局提示这个颜色，后3局全赢</p>
-
-    <p>转化为后5局赢3局的子问题，这个子问题已经解决。</p>
-
-    <p>并且乙看到这3局全赢，也可以立刻知道后面该用5赢3的策略了。</p>
-  </blockquote>
-
-  <p>如果这3局颜色不完全一样</p>
-
-  <blockquote>
-    <p>甲先看4那组的形状</p>
-
-    <p><strong>如果是abba/baab</strong>，则进入分支一：</p>
-
-    <blockquote>
-      <p>甲在第一组告诉乙第二组3局里较少的颜色，乙在第二组只出这个颜色</p>
-
-      <p>第二组会赢1输2，乙发现了甲故意告诉了乙较少的颜色，就明白这里是分支一，第三组颜色是abba/baab</p>
-
-      <p>而必输的两局，第一局甲用a表示第三组是abba，用b表示第三组是baab</p>
-
-      <p>第二局甲用a表示第四组是a，用b表示第四组是b</p>
-
-      <p>因此后5局全赢，总共0+1+4+1=6局</p>
-    </blockquote>
-
-    <p><strong>如果是abab/baba</strong>，则进入分支二：</p>
-
-    <blockquote>
-      <p>甲在第一组告诉乙第二组3局里较多的颜色，乙在第二组只出这个颜色</p>
-
-      <p>第二组本来会赢2输1，但是甲在其中某一局故意做错。乙发现了甲故意做错，就明白这里是分支二，第三组颜色是abab/baba</p>
-
-      <p>如果靠前的那局故意做错，代表第三组是abab，如果靠后的那局故意做错，代表第三组是baba</p>
-
-      <p>本来必输的那局，甲用a表示第四组是a，用b表示第四组是b</p>
-
-      <p>因此后5局全赢，总共0+1+4+1=6局</p>
-    </blockquote>
-
-    <p><strong>如果是不平衡态/aabb/bbaa</strong>，则进入分支三：</p>
-
-    <blockquote>
-      <p>甲在第一组告诉乙第二组3局里较多的颜色，乙在第二组只出这个颜色</p>
-
-      <p>第二组常规做，赢2输1，乙发现第二组赢2输1，就知道进入了分支三</p>
-
-      <p>必错的那局，根据第三组是否平衡分为两种情况</p>
-
-      <p><strong>如果第三组不平衡</strong></p>
-
-      <blockquote>
-        <p>第二组必错的那局提示第三组较多的颜色。</p>
-
-        <p>乙在第三组只出这个颜色，如果是4:0，赢4局，总共已经赢了0+2+4=6局，最后一组无所谓了</p>
-
-        <p>如果是3:1，赢3局，必输的那局用来提示最后一组的那局颜色，如果是a就出a，是b就出b，保证那一局也胜利，总共0+2+3+1=6局</p>
-      </blockquote>
-
-      <p><strong>如果第三组平衡</strong></p>
-
-      <blockquote>
-        <p>第二组必错的那局提示第三组第一个，aabb就出a，bbaa就出b，但是乙现在还不知道</p>
-
-        <p>让乙先默认这组是不平衡态，先按照不平衡的方法出。因此前两个乙可以做对</p>
-
-        <p>但是甲在其中选一个位置故意做错提示乙这里是aabb/bbaa，乙一旦发现分支三里甲故意做错，就知道后两个要变色了，因此后两个可以做对，总共对3个。</p>
-
-        <p>而如果第一个故意做错，代表第四组是a，如果第二个故意做错，代表第四组是b，因此第四组也可以做对，总共0+2+3+1=6局</p>
-      </blockquote>
-    </blockquote>
-  </blockquote>
-</blockquote>
+<ul>
+  <li>将9局分为1+3+4+1的分组</li>
+  <li>看3那组的形状，如果这3局颜色完全一样
+    <ul>
+      <li>则甲第一局提示这个颜色，后3局全赢</li>
+      <li>转化为后5局赢3局的子问题，这个子问题已经解决。</li>
+      <li>并且乙看到这3局全赢，也可以立刻知道后面该用5赢3的策略了。</li>
+    </ul>
+  </li>
+  <li>如果这3局颜色不完全一样
+    <ul>
+      <li>甲先看4那组的形状</li>
+      <li><strong>如果是abba/baab</strong>，则进入分支一：
+        <ul>
+          <li>甲在第一组告诉乙第二组3局里较少的颜色，乙在第二组只出这个颜色</li>
+          <li>第二组会赢1输2，乙发现了甲故意告诉了乙较少的颜色，就明白这里是分支一，第三组颜色是abba/baab</li>
+          <li>而必输的两局，第一局甲用a表示第三组是abba，用b表示第三组是baab</li>
+          <li>第二局甲用a表示第四组是a，用b表示第四组是b</li>
+          <li>因此后5局全赢，总共0+1+4+1=6局</li>
+        </ul>
+      </li>
+      <li><strong>如果是abab/baba</strong>，则进入分支二：
+        <ul>
+          <li>甲在第一组告诉乙第二组3局里较多的颜色，乙在第二组只出这个颜色</li>
+          <li>第二组本来会赢2输1，但是甲在其中某一局故意做错。乙发现了甲故意做错，就明白这里是分支二，第三组颜色是abab/baba</li>
+          <li>如果靠前的那局故意做错，代表第三组是abab，如果靠后的那局故意做错，代表第三组是baba</li>
+          <li>本来必输的那局，甲用a表示第四组是a，用b表示第四组是b</li>
+          <li>因此后5局全赢，总共0+1+4+1=6局</li>
+        </ul>
+      </li>
+      <li><strong>如果是不平衡态/aabb/bbaa</strong>，则进入分支三：
+        <ul>
+          <li>甲在第一组告诉乙第二组3局里较多的颜色，乙在第二组只出这个颜色</li>
+          <li>第二组常规做，赢2输1，乙发现第二组赢2输1，就知道进入了分支三</li>
+          <li>必错的那局，根据第三组是否平衡分为两种情况</li>
+          <li><strong>如果第三组不平衡</strong>
+            <ul>
+              <li>第二组必错的那局提示第三组较多的颜色。</li>
+              <li>乙在第三组只出这个颜色，如果是4:0，赢4局，总共已经赢了0+2+4=6局，最后一组无所谓了</li>
+              <li>如果是3:1，赢3局，必输的那局用来提示最后一组的那局颜色，如果是a就出a，是b就出b，保证那一局也胜利，总共0+2+3+1=6局</li>
+            </ul>
+          </li>
+          <li><strong>如果第三组平衡</strong>
+            <ul>
+              <li>第二组必错的那局提示第三组第一个，aabb就出a，bbaa就出b，但是乙现在还不知道</li>
+              <li>让乙先默认这组是不平衡态，先按照不平衡的方法出。因此前两个乙可以做对</li>
+              <li>但是甲在其中选一个位置故意做错提示乙这里是aabb/bbaa，乙一旦发现分支三里甲故意做错，就知道后两个要变色了，因此后两个可以做对，总共对3个。</li>
+              <li>而如果第一个故意做错，代表第四组是a，如果第二个故意做错，代表第四组是b，因此第四组也可以做对，总共0+2+3+1=6局</li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+</ul>
 
 <h3 id="模块化">模块化</h3>
 
@@ -379,208 +372,127 @@ F有$2^{N^2}$种可能</p>
 
 <p>1-&gt;3-&gt;4-&gt;4-&gt;…-&gt;4-&gt;1</p>
 
-<blockquote>
-  <p>in1（代表mid()形状为abba/baab）：</p>
-
-  <blockquote>
-    <p>输入了2bit信息。由于只有abba/baab的区别，于是只需要1bit即可区分。</p>
-
-    <p>out3</p>
-
-    <blockquote>
-      <p>使用1bit信息，赢4局。</p>
-
-      <p>因为输入了2bit，只用了1bit，所以没用到的1bit信息作为out3的输出。</p>
-
-      <p>并且，in1里全胜，这个信息告诉乙后续是分支三（这里是out3）。</p>
-    </blockquote>
-
-    <p>out1/2</p>
-
-    <blockquote>
-      <p>我们先使用1bit信息区分abba/baab，然后可以在4个位置选择一个故意做错，这样赢了3局。</p>
-
-      <p>因为有4种可能，加上没用到的1bit输入，我们有3bit信息。可以使用1bit来区分到底是out1还是out2，剩下2bit作为out1或者out2的输出。</p>
-
-      <p>并且，in1里赢3输1，这个信息告诉乙这里是out1或2。</p>
-    </blockquote>
-  </blockquote>
-
-  <p>in2（代表mid()形状为abab/baba）：</p>
-
-  <blockquote>
-    <p>输入了2bit信息，和in1完全同理，使用1bit区分abab/baba</p>
-
-    <p>out3</p>
-
-    <blockquote>
-      <p>全部做对赢4局</p>
-
-      <p>没用到的1bit作为out3的输出。</p>
-
-      <p>并且，in2里全胜，这个信息告诉乙这里out3。</p>
-    </blockquote>
-
-    <p>out1/2</p>
-
-    <blockquote>
-      <p>4个位置故意选一个做错，赢3局，可以获得2bit信息，加上没用到的1bit，总共3bit作为out1/2的输出。</p>
-
-      <p>并且，in2里赢3输1，这个信息告诉乙这里是out1/2。</p>
-    </blockquote>
-  </blockquote>
-
-  <p>in3（代表mid()形状为aabb/bbaa/不平衡态）：</p>
-
-  <blockquote>
-    <p>输入了1bit信息</p>
-
-    <p>如果4局颜色完全一样，则可以利用1bit信息直接全胜，加上begin(out3)里赢的2局，总共赢了6局，转化为后续5赢3的子问题，</p>
-
-    <p>这个子问题我们已经解决。但这种特例如果特殊处理则不便于推广，我们暂且把这个问题搁置一下，等到先解决了13赢9之后推广4n+1赢3n时再研究。</p>
-
-    <p>分为两种情况</p>
-
-    <p>①如果形状为aabb/bbaa</p>
-
-    <blockquote>
-      <p>out3</p>
-
-      <blockquote>
-        <p>先使用输入的1bit信息来区分aabb/bbaa，乙则默认是不平衡态，只出a/b</p>
-
-        <p>甲在1或者2故意做错一局，提醒乙这里是平衡态，乙发现甲故意做错，后续两个就变色，可以全部做对，总共赢3局。</p>
-
-        <p>故意做错的一局可以是1也可以是2，因此能传递1bit信息作为out3的输出。</p>
-
-        <p>并且，甲在in3①里赢3输1，这个信息告诉乙这里是out3</p>
-      </blockquote>
-
-      <p>out1</p>
-
-      <blockquote>
-        <p>先使用输入的1bit信息来区分aabb/bbaa，乙则默认是不平衡态，只出a/b</p>
-
-        <p>甲在1或2故意做错一局，提醒乙这里是平衡态，乙发现甲故意做错，后续两个就变色。但是甲在后两局也选一局故意做错，总共赢2局。</p>
-
-        <p>故意做错的两局可以是13、14、23、24四种组合，因此能产生2bit信息作为out1的输出。</p>
-
-        <p>并且，甲在in3①里前两局故意错一局，后两局也故意错一局，这个信息告诉乙这里是out1。</p>
-      </blockquote>
-
-      <p>out2</p>
-
-      <blockquote>
-        <p>先使用输入的1bit信息来区分aabb/bbaa，乙则默认是不平衡态，只出a/b</p>
-
-        <p>甲在12都做对，因此乙并不知道后续要变色，所以34全错。总共赢2局。</p>
-
-        <p>乙虽然一直默认是不平衡态，以为这里是in3②，但4局结束后看到上帝是aabb/bbaa，依然可以明白这里是in3①。</p>
-
-        <p>必错的两局，甲可以自由分配，产生2bit信息作为out2的输出。</p>
-
-        <p>并且，甲在in3①里前两局做对，导致后两局做错，这个信息告诉乙这里是out2。</p>
-      </blockquote>
-    </blockquote>
-
-    <p>②如果是3比1的不平衡态</p>
-
-    <blockquote>
-      <p>out3</p>
-
-      <blockquote>
-        <p>先使用输入的1bit信息来告诉乙哪种颜色比较多，乙只出这个颜色。可以赢3局。</p>
-
-        <p>必输的一局，可以产生1bit信息作为out3的输出</p>
-
-        <p>并且，甲在in3②里赢3输1，这个信息告诉乙这里是out3。</p>
-      </blockquote>
-
-      <p>out1/2（赢2输2，输出3bit）</p>
-
-      <p>1、如果将输入的1bit提示本组里较多的颜色</p>
-
-      <blockquote>
-        <p>乙先只出这个颜色</p>
-
-        <p>必错的局甲可以ab二选一</p>
-
-        <p>甲再从剩余3局选一局故意做错，总共赢2局</p>
-
-        <p>错局的位置有3种可能，加上必错局，总共可以分出6种情况。</p>
-
-        <p>根据具体情况乙后两局可能会误以为平衡态而变色，不过甲也会知道，不会影响策略。</p>
-      </blockquote>
-
-      <p>2、如果将输入的1bit提示本组里较少的颜色（反常态）</p>
-
-      <blockquote>
-        <p>乙先只出这个颜色</p>
-
-        <p>若较少的颜色出现在后2局</p>
-
-        <blockquote>
-          <p>则乙会在必输掉前两局后发现这里是反常态</p>
-
-          <p>必输的两局甲可以自由分配产生2bit信息</p>
-
-          <p>其中1bit信息告知本组后两局是ab还是ba，保证后两局全赢，总共赢2局</p>
-
-          <p>另1bit信息可以是a也可以是b，分出2种情况</p>
-        </blockquote>
-
-        <p>若较少的颜色出现在前两局</p>
-
-        <blockquote>
-          <p>则乙会在前三局一胜两负后发现这里是反常态</p>
-
-          <p>则最后一局可以获胜，总共赢2局</p>
-
-          <p>甲在必错的两局产生2bit信息，可以分出4种情况。</p>
-
-          <p>我们不需要这么多，只取其中2种情况</p>
-
-          <p>把“1、”里的6种情况与“2、”里的2种情况组合起来，总共有8种情况</p>
-
-          <p>可以产生3bit信息作为out1/2的输出。</p>
-
-          <p>并且，甲在in3②里赢2输2，这个信息告诉乙这里是out1/2</p>
-        </blockquote>
-      </blockquote>
-    </blockquote>
-  </blockquote>
-</blockquote>
-
-<h2 id="检索相关文献half-done">检索相关文献(half done)</h2>
-
-<p><a href="https://scholar.google.fr/citations?user=WQs3TLcAAAAJ&amp;hl=fr">Oliver Gossner</a></p>
-
-<p>APA: Gossner, O., Hernández, P., &amp; Neyman, A. (2006). Optimal use of communication resources. <em>Econometrica</em>, <em>74</em>(6), 1603-1636. https://doi.org/10.1111/j.1468-0262.2006.00720.x</p>
-
-<p>文章地址: https://cris.huji.ac.il/en/publications/optimal-use-of-communication-resources</p>
-
-<p>本地存档:  <a href="/blog/entry/B250520/Econometrica%20-%202006%20-%20Gossner%20-%20Optimal%20Use%20of%20Communication%20Resources.pdf">Econometrica - 2006 - Gossner - Optimal Use of Communication Resources.pdf</a></p>
-
-<p>在 2.1 Example: Coordination with Nature 中给出了这个问题</p>
-
-<h3 id="block-size3">block size=3</h3>
-
-<p>具体如何得到
-\(\text{For } i=0: \quad
-\begin{array}{c|cc}
- &amp; 0 &amp; 1 \\
-\hline
-0 &amp; \frac{17}{48} &amp; \frac{1}{16} \\
-1 &amp; \frac{1}{48} &amp; \frac{1}{16} \\
-\end{array}
-\qquad
-\text{For } i=1: \quad
-\begin{array}{c|cc}
- &amp; 0 &amp; 1 \\
-\hline
-0 &amp; \frac{1}{16} &amp; \frac{1}{48} \\
-1 &amp; \frac{1}{16} &amp; \frac{17}{48} \\
-\end{array}\)</p>
+<ul>
+  <li>in1（代表mid()形状为abba/baab）：
+    <ul>
+      <li>输入了2bit信息。由于只有abba/baab的区别，于是只需要1bit即可区分。</li>
+      <li>out3
+        <ul>
+          <li>使用1bit信息，赢4局。</li>
+          <li>因为输入了2bit，只用了1bit，所以没用到的1bit信息作为out3的输出。</li>
+          <li>并且，in1里全胜，这个信息告诉乙后续是分支三（这里是out3）。</li>
+        </ul>
+      </li>
+      <li>out1/2
+        <ul>
+          <li>我们先使用1bit信息区分abba/baab，然后可以在4个位置选择一个故意做错，这样赢了3局。</li>
+          <li>因为有4种可能，加上没用到的1bit输入，我们有3bit信息。可以使用1bit来区分到底是out1还是out2，剩下2bit作为out1或者out2的输出。</li>
+          <li>并且，in1里赢3输1，这个信息告诉乙这里是out1或2。</li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li>in2（代表mid()形状为abab/baba）：
+    <ul>
+      <li>输入了2bit信息，和in1完全同理，使用1bit区分abab/baba</li>
+      <li>out3
+        <ul>
+          <li>全部做对赢4局</li>
+          <li>没用到的1bit作为out3的输出。</li>
+          <li>并且，in2里全胜，这个信息告诉乙这里out3。</li>
+        </ul>
+      </li>
+      <li>out1/2
+        <ul>
+          <li>4个位置故意选一个做错，赢3局，可以获得2bit信息，加上没用到的1bit，总共3bit作为out1/2的输出。</li>
+          <li>并且，in2里赢3输1，这个信息告诉乙这里是out1/2。</li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li>in3（代表mid()形状为aabb/bbaa/不平衡态）：
+    <ul>
+      <li>输入了1bit信息</li>
+      <li>如果4局颜色完全一样，则可以利用1bit信息直接全胜，加上begin(out3)里赢的2局，总共赢了6局，转化为后续5赢3的子问题，</li>
+      <li>这个子问题我们已经解决。但这种特例如果特殊处理则不便于推广，我们暂且把这个问题搁置一下，等到先解决了13赢9之后推广4n+1赢3n时再研究。</li>
+      <li>分为两种情况</li>
+      <li>①如果形状为aabb/bbaa
+        <ul>
+          <li>out3
+            <ul>
+              <li>先使用输入的1bit信息来区分aabb/bbaa，乙则默认是不平衡态，只出a/b</li>
+              <li>甲在1或者2故意做错一局，提醒乙这里是平衡态，乙发现甲故意做错，后续两个就变色，可以全部做对，总共赢3局。</li>
+              <li>故意做错的一局可以是1也可以是2，因此能传递1bit信息作为out3的输出。</li>
+              <li>并且，甲在in3①里赢3输1，这个信息告诉乙这里是out3</li>
+            </ul>
+          </li>
+          <li>out1
+            <ul>
+              <li>先使用输入的1bit信息来区分aabb/bbaa，乙则默认是不平衡态，只出a/b</li>
+              <li>甲在1或2故意做错一局，提醒乙这里是平衡态，乙发现甲故意做错，后续两个就变色。但是甲在后两局也选一局故意做错，总共赢2局。</li>
+              <li>故意做错的两局可以是13、14、23、24四种组合，因此能产生2bit信息作为out1的输出。</li>
+              <li>并且，甲在in3①里前两局故意错一局，后两局也故意错一局，这个信息告诉乙这里是out1。</li>
+            </ul>
+          </li>
+          <li>out2
+            <ul>
+              <li>先使用输入的1bit信息来区分aabb/bbaa，乙则默认是不平衡态，只出a/b</li>
+              <li>甲在12都做对，因此乙并不知道后续要变色，所以34全错。总共赢2局。</li>
+              <li>乙虽然一直默认是不平衡态，以为这里是in3②，但4局结束后看到上帝是aabb/bbaa，依然可以明白这里是in3①。</li>
+              <li>必错的两局，甲可以自由分配，产生2bit信息作为out2的输出。</li>
+              <li>并且，甲在in3①里前两局做对，导致后两局做错，这个信息告诉乙这里是out2。</li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>②如果是3比1的不平衡态
+        <ul>
+          <li>out3
+            <ul>
+              <li>先使用输入的1bit信息来告诉乙哪种颜色比较多，乙只出这个颜色。可以赢3局。</li>
+              <li>必输的一局，可以产生1bit信息作为out3的输出</li>
+              <li>并且，甲在in3②里赢3输1，这个信息告诉乙这里是out3。</li>
+            </ul>
+          </li>
+          <li>out1/2（赢2输2，输出3bit）</li>
+          <li>1、如果将输入的1bit提示本组里较多的颜色
+            <ul>
+              <li>乙先只出这个颜色</li>
+              <li>必错的局甲可以ab二选一</li>
+              <li>甲再从剩余3局选一局故意做错，总共赢2局</li>
+              <li>错局的位置有3种可能，加上必错局，总共可以分出6种情况。</li>
+              <li>根据具体情况乙后两局可能会误以为平衡态而变色，不过甲也会知道，不会影响策略。</li>
+            </ul>
+          </li>
+          <li>2、如果将输入的1bit提示本组里较少的颜色（反常态）
+            <ul>
+              <li>乙先只出这个颜色</li>
+              <li>若较少的颜色出现在后2局
+                <ul>
+                  <li>则乙会在必输掉前两局后发现这里是反常态</li>
+                  <li>必输的两局甲可以自由分配产生2bit信息</li>
+                  <li>其中1bit信息告知本组后两局是ab还是ba，保证后两局全赢，总共赢2局</li>
+                  <li>另1bit信息可以是a也可以是b，分出2种情况</li>
+                </ul>
+              </li>
+              <li>若较少的颜色出现在前两局
+                <ul>
+                  <li>则乙会在前三局一胜两负后发现这里是反常态</li>
+                  <li>则最后一局可以获胜，总共赢2局</li>
+                  <li>甲在必错的两局产生2bit信息，可以分出4种情况。</li>
+                  <li>我们不需要这么多，只取其中2种情况</li>
+                  <li>把“1、”里的6种情况与“2、”里的2种情况组合起来，总共有8种情况</li>
+                  <li>可以产生3bit信息作为out1/2的输出。</li>
+                  <li>并且，甲在in3②里赢2输2，这个信息告诉乙这里是out1/2</li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+</ul>
 
 <h2 id="代码仿真half-done">代码仿真(half done)</h2>
 
@@ -655,9 +567,173 @@ F有$2^{N^2}$种可能</p>
 
 </code></pre></div></div>
 
+<h2 id="检索相关文献half-done">检索相关文献(half done)</h2>
 
-    </section>
+<p><a href="https://scholar.google.fr/citations?user=WQs3TLcAAAAJ&amp;hl=fr">Oliver Gossner</a></p>
+
+<p>APA: Gossner, O., Hernández, P., &amp; Neyman, A. (2006). Optimal use of communication resources. <em>Econometrica</em>, <em>74</em>(6), 1603-1636. https://doi.org/10.1111/j.1468-0262.2006.00720.x</p>
+
+<p>文章地址: https://cris.huji.ac.il/en/publications/optimal-use-of-communication-resources</p>
+
+<p>本地存档:  <a href="/blog/entry/B250520/Econometrica%20-%202006%20-%20Gossner%20-%20Optimal%20Use%20of%20Communication%20Resources.pdf">Econometrica - 2006 - Gossner - Optimal Use of Communication Resources.pdf</a></p>
+
+<p>在 2.1 Example: Coordination with Nature 中给出了这个问题</p>
+
+<h3 id="block-size3">block size=3</h3>
+
+<p>具体如何得到</p>
+
+\[i=0: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; \frac{17}{48} &amp; \frac{1}{16} \\
+1 &amp; \frac{1}{48} &amp; \frac{1}{16} \\
+\end{array}
+\qquad
+i=1: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; \frac{1}{16} &amp; \frac{1}{48} \\
+1 &amp; \frac{1}{16} &amp; \frac{17}{48} \\
+\end{array}\]
+
+<p>例如在(0, 0, 0)中</p>
+
+\[i=0: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; \frac{5}{6} &amp; 0 \\
+1 &amp; \frac{1}{6} &amp; 0 \\
+\end{array}
+\qquad
+i=1: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; 0 &amp; 0 \\
+1 &amp; 0 &amp; 0 \\
+\end{array}\]
+
+<p>在(0,0,0)和(1,1,1)平均</p>
+
+\[i=0: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; \frac{5}{12} &amp; 0 \\
+1 &amp; \frac{1}{12} &amp; 0 \\
+\end{array}
+\qquad
+i=1: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; 0 &amp; \frac{1}{12} \\
+1 &amp; 0 &amp; \frac{5}{12} \\
+\end{array}\]
+
+<p>(0,0,1)/(0,1,0)/(1,0,0)中</p>
+
+\[i=0: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; \frac{2}{3} &amp; 0 \\
+1 &amp; 0 &amp; 0 \\
+\end{array}
+\qquad
+i=1: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; \frac{1}{6} &amp; 0 \\
+1 &amp; \frac{1}{6} &amp; 0 \\
+\end{array}\]
+
+<p>(0,0,1)/(0,1,0)/(1,0,0)/(1,1,0)/(1,0,1)/(0,1,1)平均</p>
+
+\[i=0: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; \frac{1}{3} &amp; \frac{1}{12} \\
+1 &amp; 0 &amp; \frac{1}{12} \\
+\end{array}
+\qquad
+i=1: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; \frac{1}{12} &amp; 0 \\
+1 &amp; \frac{1}{12} &amp; \frac{1}{3} \\
+\end{array}\]
+
+<p>加权平均</p>
+
+\[i=0: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; \frac{17}{48} &amp; \frac{1}{16} \\
+1 &amp; \frac{1}{48} &amp; \frac{1}{16} \\
+\end{array}
+\qquad
+i=1: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; \frac{1}{16} &amp; \frac{1}{48} \\
+1 &amp; \frac{1}{16} &amp; \frac{17}{48} \\
+\end{array}\]
+
+<h3 id="information-constraint">Information constraint</h3>
+
+\[i=0: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; \frac{x}{2} &amp; \frac{1-x}{6} \\
+1 &amp; \frac{1-x}{6} &amp; \frac{1-x}{6} \\
+\end{array}
+\qquad
+i=1: \quad
+\begin{array}{c|cc}
+ &amp; 0 &amp; 1 \\
+\hline
+0 &amp; \frac{1-x}{6} &amp; \frac{1-x}{6} \\
+1 &amp; \frac{1-x}{6} &amp; \frac{x}{2} \\
+\end{array}\]
+
+\[H(P) = -\sum_{i,j} P(i,j) \log P(i,j)\]
+
+\[H(i,j \mid k) = - \left[ y \log y + 3 \cdot \frac{1 - y}{3} \log \left( \frac{1 - y}{3} \right) \right] =H(y) + (1 - y)\log 3\]
+
+        
+      </section>
+
+      <footer class="page__meta">
+        
+        
+
+
+        
+
+      </footer>
+
+      
+
+      
+
+    </div>
+
+    
   </article>
+
+  
+  
 </div>
 
       

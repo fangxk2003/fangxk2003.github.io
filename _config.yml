@@ -17,3 +17,6 @@ author:
   name: "Xingkai Fang"
   avatar: "/assets/images/profile.jpg"
   bio: "Junior | Medical Imaging | SJTU"
+
+sass:
+  style: compressed
