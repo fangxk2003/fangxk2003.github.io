@@ -21,40 +21,44 @@ title: "About Me"
 </div>
 
 
+## Research Experience
+
+- **Region-specific Anomaly Detection in fMRI for Brain Disease Diagnosis**
+  - *May 2024 - May 2025, Chun-Tsung Program(CTP), SJTU*
+  - Advisor: Prof. Lichi Zhang, School of Biomedical Engineering, SJTU
+  - I collected and preprocessed rs-fMRI and T1w-MRI data from 1,588 UK Biobank subjects using standard pipelines and extracted BOLD signals via AAL-424 atlas. I took part in designing and evaluating RSAD, a novel anomaly detection model, against multiple baselines (AE, BrainLM, Anomaly Transformer). I also conducted ablation studies on key RSAD modules (AML, ARoM, Sdis), confirming the critical role of region-specific discrepancy scoring in boosting detection performance across Alzheimer’s, depression, and Parkinson’s disease tasks.
+  - Key words: Anomaly detection, Self-supervised learning, rs-fMRI, Brain disease diagnosis
 
 
-My research interest is now on diagnosis and screening of diseases from medical images like CT and MRI using machine learning method. I'm currently engaged in research as an undergraduate in [the Medical Image Computing Lab](https://mic.sjtu.edu.cn/).
 
-I also find my interest in fields like MRI sequence designing (DTI, CMR, etc.) and have finished the graduate-level MRI course.
+- **AI-based Deep Learning for Automatic Whole-Brain Vessel Segmentation and Aging Correlation Analysis in Elderly Subjects**
+  - *Jan 2025 - May 2025, SJTU*
+  - Advisor: Prof. Yao Li, School of Biomedical Engineering, SJTU
+  - We applied the CereVessSeg model for high-precision brain vessel segmentation on ToF-MRA images from healthy subjects in the CHUV and MIDAS datasets; constructed population-level vascular atlases as structural references; designed and implemented a complete evaluation pipeline with multi-metric performance assessment.
+  - Key words: ToF-MRA, Brain vessel segmentation, Vascular atlas
 
-I spend plenty of time training for the Informatics Olympiad before, so I am familiar with data structures, optimization algorithm, graph theory and number theory (from engineering perspective). I am fluent in programming with C++, python, and MATLAB too.
 
-I can also do a bit Java and C#.
 
-I am learning German in my spare time and have achieved B1 level.
+- **The Impact of Cognitive-Motor Expertise on Brain Dynamics**
+
+  - *March 2023 – September 2023, Undergraduate Research Project(PRP), SJTU*
+
+  - Advisor: Prof. Yue Zhang, School of Life Sciences and Biotechnology, SJTU
+
+  - I processed and interpreted EEG signals using MATLAB and EEGLAB, including ERP (Event-Related Potential) analysis, PCA (Principal Component Analysis), and time-frequency analysis. Then I investigated theta and alpha oscillations to explore neural dynamics during action prediction tasks. Finally We identified significant differences in ERP activity and theta/alpha oscillations between experts and novices, particularly under inconsistent action conditions.
+
+  - Key words: EEG, ERP, Action prediction
+
+
+
+My research interest is now on solving clinical problems from medical images like CT and MRI. 
+
+I also find my interest in fields like MRI sequence designing and have finished the graduate-level MRI course.
+
+I was trained for the Informatics Olympiad before, so I am familiar with data structures, optimization algorithm, graph theory and basic number theory. I am fluent in programming with C++, python, and MATLAB too.
+
+I am learning German and have achieved B1 level.
 
 If you are interested in any aspect of me, please contact me any time :)
 
 My email address is fangxk2003@gmail.com
-
-
-
-## Research Experience
-
-- **Undergraduate Research Project (PRP)**
-
-  *March 2023 – September 2023, SJTU*
-
-  - **Project Title**: The Impact of Cognitive-Motor Expertise on Brain Dynamics
-  - **Advisor**: Prof. Yue Zhang, School of Life Sciences and Biotechnology
-  - **Key Responsibilities**
-    - Processed and interpreted EEG signals using MATLAB and EEGLAB, including ERP (Event-Related Potential) analysis, PCA (Principal Component Analysis), and time-frequency analysis.
-    - Investigated theta and alpha oscillations to explore neural dynamics during action prediction tasks.
-  - **Key Findings**:
-    - Identified significant differences in ERP activity and theta/alpha oscillations between experts and novices, particularly under inconsistent action conditions.
-    - Demonstrated that motor expertise enhances neural efficiency and adaptability in complex cognitive-motor tasks.
-  - **Skills Developed**:
-    - EEG data acquisition and preprocessing (filtering, segmentation, ICA).
-    - Advanced signal processing techniques (PCA, time-frequency analysis).
-    - Statistical analysis and interpretation of neural data.
-    - Scientific writing and presentation of research findings.

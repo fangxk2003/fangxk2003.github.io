@@ -8,3 +8,5 @@ title: Blog
 [How to Ride a Bicycle](entry/B2505281012.md)
 
 [Overflow of Int in Python](entry/B2506121123.md)
+
+ [Two Often Used Methods in CGT(Combinational Game Theory)](entry/B2506172051.md)
