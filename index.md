@@ -51,6 +51,8 @@ title: "About Me"
 
 
 
+My GPA is 3.78/4.0, 88.5/100
+
 My research interest is now on solving clinical problems from medical images like CT and MRI. 
 
 I also find my interest in fields like MRI sequence designing and have finished the graduate-level MRI course.
