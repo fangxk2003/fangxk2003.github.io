@@ -1,0 +1,34 @@
+---
+title: 'AlphaProof: System Architecture'
+description: 'How we solved the optimization problem using reinforcement learning.'
+pubDate: 'Jan 07 2026'
+---
+import Diagram from '../../components/Diagram';
+
+## 1. The Mathematical Foundation
+
+To train the model effectively, we had to minimize the divergence between the policy and the target distribution. The core loss function is defined as:
+
+$$
+\mathcal{L}(\theta) = \mathbb{E}_{t} \left[ \nabla_\theta \log \pi_\theta(a_t | s_t) \hat{A}_t \right]
+$$
+
+This ensures that the agent learns from statistically significant deviations.
+
+## 2. System Architecture
+
+The data ingestion pipeline consists of three distinct stages. We utilized a **Receiver-Replayer** pattern to handle the asynchronous data streams.
+
+<Diagram code={`
+graph LR
+    A[Raw Data Source] --> B(Ingestion Node)
+    B --> C{Validation Pass?}
+    C -- Yes --> D[Training Cluster]
+    C -- No --> E[Dead Letter Queue]
+    D --> F[Model Checkpoint]
+    style D fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+`} />
+
+## 3. Results
+
+By implementing this architecture, we reduced the inference latency by **40%** while maintaining an accuracy of **99.9%**.
