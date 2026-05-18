@@ -5,6 +5,7 @@ import BaseHead from '../components/BaseHead.astro';
 import Footer from '../components/Footer.astro';
 import FormattedDate from '../components/FormattedDate.astro';
 import Header from '../components/Header.astro';
+import 'katex/dist/katex.min.css';
 
 type Props = CollectionEntry<'blog'>['data'];
 
@@ -52,6 +53,16 @@ const { title, description, pubDate, updatedDate, heroImage } = Astro.props;
 			.last-updated-on {
 				font-style: italic;
 			}
+			.mermaid {
+				display: flex;
+				justify-content: center;
+				margin: 2rem 0;
+				padding: 1.5rem;
+				overflow-x: auto;
+				border: 1px solid rgb(var(--gray-light));
+				border-radius: 8px;
+				background: #f8fafc;
+			}
 		</style>
 	</head>
 
@@ -82,5 +93,21 @@ const { title, description, pubDate, updatedDate, heroImage } = Astro.props;
 			</article>
 		</main>
 		<Footer />
+		<script>
+			import mermaid from 'mermaid';
+
+			mermaid.initialize({
+				startOnLoad: false,
+				theme: 'base',
+				themeVariables: {
+					primaryColor: '#e0eaff',
+					lineColor: '#2563eb',
+					primaryTextColor: '#1e293b',
+					primaryBorderColor: '#2563eb',
+				},
+			});
+
+			mermaid.run({ querySelector: '.mermaid' });
+		</script>
 	</body>
 </html>
