@@ -73,12 +73,14 @@ $$
 
 `dp[used][tracked_lcm] = contribution_so_far` where `used` is how many elements have been assigned to cycles, and `tracked_lcm` is the part of the lcm that still matters for future smaller cycle lengths.
 
-The clever compression is the prime-power step. Since the DP processes cycle lengths downward, once we pass a prime power $p^k$, no smaller future cycle can introduce that same power. So if the tracked lcm is divisible by $p^k$, we can commit one factor of $p$ into the final $LCM^2$:
+Here comes the clever compression. Since the DP processes cycle lengths downward, once we pass a prime power $p^k$, no smaller future cycle can introduce that same power. So if the tracked lcm is divisible by $p^k$, we can commit one factor of $p$ into the final $LCM^2$:
 
 ```py
 reduced_lcm //= p
 contribution *= p^2
 ```
+
+The final answer is `dp[n][1]`
 
 ## [Problem 579](https://projecteuler.net/problem=579)
 ![littleparrot](/images/project-euler-solution-l39/IMG_9558.jpg)
@@ -106,28 +108,29 @@ $$
 \vec{p}+\vec{u}+\vec{v}+\vec{w}
 $$
 
-In my implementation, each actual cube is counted by several equivalent ordered frames. The normalization is handled by:
+In the implementation, each actual cube is counted 24 times.
 
-```py
-ORDERED_FRAMES_PER_CUBE = 24
-```
-
-So the main task becomes: generate all possible orthogonal integer triples efficiently, count their valid translations, and divide out the repeated frame count at the end.
+So the main task becomes: 1. generate all possible orthogonal integer triples efficiently; 2. count their valid translations; 3. divide out the repeated frame count at the end.
 
 ### Generating Cube Orientations
 
-The solver uses the Euler-Rodrigues quaternion formula. A primitive integer quaternion
+The solver uses the Euler-Rodrigues quaternion formula. 
 
-$$
-(a,b,c,d)
-$$
-
-Quaternion can represent a 3d rotation
+Quaternion $(a, b, c, d)$ can represent a 3d rotation
 
 $$
 q=(a,b,c,d) \\
 q^{-1}=(a, -b, -c, -d) \\
 f(p)=q\cdot p \cdot q^{-1}
+$$
+
+can also be represented by 
+
+$$
+q=a+bi+cj+ck \\
+a^2+b^2+c^2+d^2=1 \\
+i^2=j^2=k^2=ijk=-1 \\
+ij=k, jk=i, ki=j
 $$
 
 [Euler Rodrigues Formula](https://en.wikipedia.org/wiki/Euler–Rodrigues_formula)
@@ -139,29 +142,76 @@ a^2+b^2-c^2-d^2 & 2(b c-a d) & 2(b d+a c) \\
 2(b d-a c) & 2(c d+a b) & a^2+d^2-b^2-c^2
 \end{array}\right) \vec{x}
 $$
-generates a $3 \times 3$ integer matrix whose columns are mutually orthogonal and have the same squared length. After dividing by the matrix gcd, the result is a primitive lattice-cube orientation.
 
+It's a $3 \times 3$ integer matrix whose columns are mutually orthogonal and have the same squared length. After dividing by the matrix gcd, the result is a primitive lattice-cube orientation.
 
-In code, this step has the shape:
+Visualization: https://eater.net/quaternions
 
-```py
-side, matrix = euler_rodrigues_matrix(a, b, c, d)
-```
+Example:
 
-Here, `matrix` stores the primitive edge directions. Scaling the whole matrix by $k$ gives a larger cube with the same orientation.
+$$
+\begin{aligned}
+(a, b, c, d) &= (4, 3, 2, 1) \\
+\mathbf{M}_{raw}
+&=
+\begin{pmatrix}
+20 & 4 & 22 \\
+20 & 10 & -20 \\
+-10 & 28 & 4
+\end{pmatrix}
+\end{aligned}
+$$
+
+The matrix gcd is $2$, so the primitive orientation matrix is:
+
+$$
+\mathbf{M}
+=
+\begin{pmatrix}
+10 & 2 & 11 \\
+10 & 5 & -10 \\
+-5 & 14 & 2
+\end{pmatrix}
+$$
+
+So the three primitive edge vectors are the columns of $\mathbf{M}$:
+
+$$
+\vec{u}=(10,10,-5),\quad
+\vec{v}=(2,5,14),\quad
+\vec{w}=(11,-10,2)
+$$
+
+They all have the same squared length:
+
+$$
+|\vec{u}|^2=|\vec{v}|^2=|\vec{w}|^2=225
+$$
+
+Scaling the whole matrix by $k$ gives a larger cube with the same orientation.
 
 ### Bounding Box and Translations
 
 For a primitive matrix $M$, the width of the cube in each coordinate direction is the sum of absolute values in each row:
 
-```py
-widths = tuple(sum(abs(value) for value in row) for row in matrix)
-```
+$$
+w_r=\sum_{j=1}^{3}|M_{rj}|,\quad r\in\{x,y,z\}
+$$
 
 Let these widths be:
 
 $$
 (w_x,w_y,w_z)
+$$
+
+For the example above:
+
+$$
+\begin{aligned}
+w_x &= |10|+|2|+|11|=23 \\
+w_y &= |10|+|5|+|-10|=25 \\
+w_z &= |-5|+|14|+|2|=21
+\end{aligned}
 $$
 
 For scale $k$, the number of valid translations inside $[0,n]^3$ is:
@@ -183,7 +233,8 @@ $$
 where $s$ is the side parameter of the primitive orientation, and $g$ is the sum of gcds along the three primitive edge directions.
 
 
-Its 2d version is taught in primary school, pretty interesting.
+Its 2D version is taught in primary school, pretty interesting.
+![primary-example](/images/project-euler-solution-l39/hq720.jpg)
 
 ### Contribution of One Orientation
 
@@ -199,7 +250,7 @@ $$
 \sum k^0,\sum k^1,\ldots,\sum k^6
 $$
 
-This makes the large case $n=5000$ much more manageable.
+This makes the large case much more manageable.
 
 
 ## [Problem 585](https://projecteuler.net/problem=585)
@@ -225,7 +276,7 @@ For this to equal $x + \sqrt{y} + \sqrt{z}$, all irrational cross-terms must col
 
 That restriction forces only two real cases.
 
-Case 1: two-term denesting
+### Case 1: Two-term Denesting
 
 $$
 R = \sqrt{A}+\sqrt{B} \\
@@ -233,7 +284,7 @@ R^2 = A + B + 2\sqrt{AB} \\
 A+B\leq n
 $$
 
-Case 2: genuine four-term denesting
+### Case 2: Genuine Four-term Denesting
 
 $$
 \sqrt{gac} + \sqrt{gad} + \sqrt{gbc} - \sqrt{gbd}
@@ -247,6 +298,16 @@ c > d \\
 gcd(a,b) = gcd(c,d) = 1 \\
 g(a+b)(c+d) \leq n
 $$
+
+Squaring that gives:
+
+$$
+g(a+b)(c+d) + 2g(a-b)\sqrt{cd} + 2g(c-d)\sqrt{ab}
+$$
+
+Then count primitive pairs $(a,b)$ by their sum $a+b$. For each pair of sums $s,t$, there are: $\lfloor n / (s t)\rfloor$ valid choices of $g$. 
+
+$ab$ and $cd$ must not be squares.
 
 The rest part is easy to handle using basic number theory techniques.
 
