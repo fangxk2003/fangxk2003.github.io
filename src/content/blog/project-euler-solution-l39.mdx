@@ -409,4 +409,116 @@ The rest part is easy to handle using basic number theory techniques.
 ## [Problem 798](https://projecteuler.net/problem=798)
 ![garden](/images/project-euler-solution-l39/IMG_0850.jpg)
 
+This is pretty interesting problem combining CGT and FWHT acceleration.
 
+For the definition and useful properties of Grundy numbers, see [Two Often-Used Methods in CGT](/blog/two-often-used-methods-in-cgt/).
+
+The solution has two layers: first solve one suit as an impartial game, then combine the $s$ suits by xor.
+
+### Split by Suits
+
+A move only affects one suit, so the whole game is the disjoint sum of $s$ independent games.
+
+For each suit, let its Sprague-Grundy value be $g$. The first player loses exactly when
+
+$$
+g_1 \oplus g_2 \oplus \cdots \oplus g_s = 0
+$$
+
+So the main task is: for one suit with $n$ cards, count how many initial visible sets have each Grundy value.
+
+Call that array:
+
+$$
+A_n[g] = \#\{\text{one-suit initial sets with Grundy value } g\}
+$$
+
+The empty set has Grundy value 0, because no move is possible.
+
+### One-Suit Grundy Counts
+
+For one suit, the code uses a recurrence for the distribution $A_n$, rather than enumerating subsets.
+
+The key recurrence is:
+
+$$
+\begin{aligned}
+A_n(0) &= 2A_{n-1}(0) - 2, \\
+A_n(1) &= A_{n-1}(0) + A_{n-1}(1) - 1.
+\end{aligned}
+$$
+
+For $g \geq 2$:
+
+$$
+A_n(g) =
+\begin{cases}
+A_{n-1}(g - 1), & g \text{ is even}, \\
+A_{n-1}(g) + A_{n-1}(g - 1), & g \text{ is odd}.
+\end{cases}
+$$
+
+with base:
+
+$$
+A_2 = [3, 1]
+$$
+
+This recurrence comes from adding the new largest card $n$. If it is visible, it is inert. If it is not visible, it acts as a new possible top target, shifting/combining the reachable mex structure in the pattern above.
+
+Naively applying that recurrence is quadratic, so the code compresses it further.
+
+It groups odd Grundy values:
+
+$$
+B_n(k) = A_n(2k + 1)
+$$
+
+Then the even values come from the previous row:
+
+$$
+A_n(2k) = B_{n-1}(k - 1)
+$$
+
+The odd-count polynomial
+
+$$
+Q_n(z) = \sum_k B_n(k)z^k
+$$
+
+satisfies:
+
+$$
+Q_n(z) = Q_{n-1}(z) + zQ_{n-2}(z) + 2^{n-3} + 1
+$$
+
+The code turns this into an $O(n)$ coefficient pass using binomial coefficient ratios and small geometric convolutions. That is what `grundy_distribution()` does.
+
+### Combine Suits with FWHT
+
+Once we have the one-suit count vector $A$, the answer is the number of ordered $s$-tuples of Grundy values whose xor is zero.
+
+That is exactly xor convolution repeated s times. The Fast Walsh-Hadamard Transform gives:
+
+$$
+\text{answer}
+= \frac{1}{L}\sum_t \operatorname{FWHT}(A)[t]^s
+$$
+
+where $L$ is the next power of two at least $n$.
+
+The program checks:
+
+$$
+C(3,2) = 26
+$$
+
+$$
+C(13,4) = 540318329
+$$
+
+and computes:
+
+$$
+C(10000000,10000000) = 132996198
+$$
