@@ -411,15 +411,15 @@ The rest part is easy to handle using basic number theory techniques.
 
 This is pretty interesting problem combining CGT and FWHT acceleration.
 
-For the definition and useful properties of Grundy numbers, see [Two Often-Used Methods in CGT](/blog/two-often-used-methods-in-cgt/).
-
 The solution has two layers: first solve one suit as an impartial game, then combine the $s$ suits by xor.
 
 ### Split by Suits
 
 A move only affects one suit, so the whole game is the disjoint sum of $s$ independent games.
 
-For each suit, let its Sprague-Grundy value be $g$. The first player loses exactly when
+For the definition and useful properties of Grundy numbers, see [Two Often-Used Methods in CGT](/blog/two-often-used-methods-in-cgt/).
+
+For each suit, let its Grundy number be $g$. The first player loses exactly when
 
 $$
 g_1 \oplus g_2 \oplus \cdots \oplus g_s = 0
@@ -437,7 +437,11 @@ The empty set has Grundy value 0, because no move is possible.
 
 ### One-Suit Grundy Counts
 
-For one suit, the code uses a recurrence for the distribution $A_n$, rather than enumerating subsets.
+For one suit, we use recurrence for the distribution $A_n$, rather than enumerating subsets.
+
+Although the pattern is easy to find by brute-forcing the first few distributions, the proof of it is quite cumbersome. There might be more easier ways to prove it, if you find it, please send me an email.
+
+#### Pattern
 
 The key recurrence is:
 
@@ -464,7 +468,30 @@ $$
 A_2 = [3, 1]
 $$
 
-This recurrence comes from adding the new largest card $n$. If it is visible, it is inert. If it is not visible, it acts as a new possible top target, shifting/combining the reachable mex structure in the pattern above.
+#### Proof
+
+Lemma (A)
+
+For $1\leq x_1 < x_2 < \dots < x_k \leq n$
+
+$$
+G_{n+1}(\{x_1, x_2, \dots, x_k, n+1\})=G_n(\{x_1, x_2, \dots, x_k\})
+$$
+
+Lemma (B)
+
+
+Lemma (C)
+
+For $1\leq x_1 < x_2 < \dots < x_k \leq n$
+
+$$
+G_{n+1}(\{x_1, x_2, \dots, x_k\})=G_n(\{x_1, x_2, \dots, x_k\})+1
+$$
+
+
+
+#### Calculation
 
 Naively applying that recurrence is quadratic, so the code compresses it further.
 
