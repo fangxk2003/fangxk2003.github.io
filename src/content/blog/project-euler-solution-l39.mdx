@@ -470,41 +470,87 @@ $$
 
 #### Proof
 
-Lemma (A)
+##### Lemma
 
 For $1\leq x_1 < x_2 < \dots < x_k \leq n$
 
-$$
-G_{n+1}(\{x_1, x_2, \dots, x_k, n+1\})=G_n(\{x_1, x_2, \dots, x_k\})
-$$
-
-Lemma (B)
-
-
-Lemma (C)
-
-For $1\leq x_1 < x_2 < \dots < x_k \leq n$
+if $x_1 \equiv x_2 \equiv \dots \equiv x_k \mod 2$, then:
 
 $$
-G_{n+1}(\{x_1, x_2, \dots, x_k\})=G_n(\{x_1, x_2, \dots, x_k\})+1
+G_n(\{x_1, x_2, \dots, x_k \}) = n - x_1 - (k - 1)
 $$
 
+otherwise, let $t > 1$ be the smallest number that satisfies $x_t\not\equiv x_1 \mod 2$
 
+$$
+G_n(\{x_1, x_2, \dots, x_k \}) = x_t - x_1 - (n - x_1 - (k - 1) +1)\% 2
+$$
+
+##### Proof of Lemma
+
+We use mathematical induction.
+
+Let $m=n - x_1 - (k-1)$
+
+For the first case, we can manipulate the state with any Grundy number $g=G_{n-1}(\{x_1, x_2, \dots, x_{p-1}, x_{p+1} - 1, x_{p+2} - 1, \dots, x_k - 1\} \cup \{u\}) < m$, where $1\leq p \leq k$
+
+And then $G_{n}(\{x_1, x_2, \dots, x_k\}) = \operatorname{mex}\{G_{n-1}(\text{Reachable Set})\}$
+
+If m is odd, then m-1 is even.
+For Grundy number $g$ that is even, if $g < x_2 - x_1$, then we cover $x_1$ by $x_2 - g - 1$; if $x_2 - x_1 leq g < x_3-x_1$, cover $x_2$ by $x_1 + g + 1$; if $x_p - x_ 1 < g < x_{p+1} - x_1, p > 3$, cover $x_p$ by $x_1+g+1$; if $g=x_p-x_1, p > 3$, cover $x_p$ by any card number larger than $x_{p+1}$
+
+![example](/images/project-euler-solution-l39/p798_example.jpg)
+
+For the rest cases, I believe they are just the similar. I have found myself wasting too much time on proving the non-sense. I'm getting really irritable analysing the cases. So I decided to give myself a break.
+
+##### Proof of the Recurrence Equations
+
+To be continued...
 
 #### Calculation
 
-Naively applying that recurrence is quadratic, so the code compresses it further.
-
-It groups odd Grundy values:
+Naively applying that recurrence is quadratic, but we can compress it further.
 
 $$
-B_n(k) = A_n(2k + 1)
-$$
-
-Then the even values come from the previous row:
-
-$$
+B_n(k) = A_n(2k + 1) \\
 A_n(2k) = B_{n-1}(k - 1)
+$$
+
+First, solve the zero-Grundy count. Since
+
+$$
+A_n(0) = 2A_{n-1}(0) - 2,\qquad A_2(0)=3,
+$$
+
+we get
+
+$$
+A_n(0)=2^{n-2}+2.
+$$
+
+For $k\geq 1$, the value $2k+1$ is an odd Grundy number at least $3$, so the
+main recurrence gives:
+
+$$
+\begin{aligned}
+B_n(k)
+&= A_n(2k+1) \\
+&= A_{n-1}(2k+1) + A_{n-1}(2k) \\
+&= B_{n-1}(k) + B_{n-2}(k-1).
+\end{aligned}
+$$
+
+The only missing coefficient is the constant term $k=0$, because $A_n(1)$ has
+its own recurrence:
+
+$$
+\begin{aligned}
+B_n(0)
+&= A_n(1) \\
+&= A_{n-1}(0) + A_{n-1}(1) - 1 \\
+&= (2^{n-3}+2) + B_{n-1}(0) - 1 \\
+&= B_{n-1}(0) + 2^{n-3} + 1.
+\end{aligned}
 $$
 
 The odd-count polynomial
@@ -519,33 +565,73 @@ $$
 Q_n(z) = Q_{n-1}(z) + zQ_{n-2}(z) + 2^{n-3} + 1
 $$
 
-The code turns this into an $O(n)$ coefficient pass using binomial coefficient ratios and small geometric convolutions. That is what `grundy_distribution()` does.
+The code turns this into an $O(n)$ coefficient pass using binomial coefficient ratios and small geometric convolutions.
 
 ### Combine Suits with FWHT
 
 Once we have the one-suit count vector $A$, the answer is the number of ordered $s$-tuples of Grundy values whose xor is zero.
 
-That is exactly xor convolution repeated s times. The Fast Walsh-Hadamard Transform gives:
+Let
+
+$$
+A[g] = \#\{\text{one-suit states with Grundy value }g\}.
+$$
+
+If there are two suits, the number of ways to get total Grundy value $x$ is
+
+$$
+(A *_\oplus A)[x] =
+\sum_{u\oplus v=x} A[u]A[v].
+$$
+
+This is xor convolution. For $s$ suits, we need the coefficient at $0$ in the
+$s$-fold xor convolution:
+
+$$
+\underbrace{A *_\oplus A *_\oplus \cdots *_\oplus A}_{s\text{ times}}.
+$$
+
+Computing that convolution directly is too slow when $s$ and $n$ are large, but
+xor convolution is exactly what the Fast Walsh-Hadamard Transform diagonalizes.
+
+#### Introduction to FWHT
+
+For an array $f$ of length $L$, define
+
+$$
+\widehat f[t] =
+\sum_x (-1)^{\operatorname{popcount}(x\&t)}f[x].
+$$
+
+Then
+
+$$
+\widehat{(f *_\oplus h)}[t] = \widehat{f}[t]\widehat{h}[t].
+$$
+
+So after transforming $A$, the $s$-fold xor convolution becomes pointwise
+exponentiation:
+
+$$
+\widehat{A^{*_\oplus s}}[t] = \widehat A[t]^s.
+$$
+
+The inverse FWHT is the same transform divided by $L$. Therefore the coefficient
+at xor value $0$ is
+
+$$
+A^{*_\oplus s}[0]
+= \frac{1}{L}\sum_t
+(-1)^{\operatorname{popcount}(0\&t)}\widehat A[t]^s.
+$$
+
+Since $\operatorname{popcount}(0\&t)=0$, the sign is always $1$. The final
+formula is:
 
 $$
 \text{answer}
 = \frac{1}{L}\sum_t \operatorname{FWHT}(A)[t]^s
 $$
 
-where $L$ is the next power of two at least $n$.
-
-The program checks:
-
-$$
-C(3,2) = 26
-$$
-
-$$
-C(13,4) = 540318329
-$$
-
-and computes:
-
-$$
-C(10000000,10000000) = 132996198
-$$
+where $L$ is the next power of two at least $n$, and $A$ is padded with zeroes
+up to length $L$.
