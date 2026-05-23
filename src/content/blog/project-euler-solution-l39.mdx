@@ -406,6 +406,154 @@ $ab$ and $cd$ must not be squares.
 
 The rest part is easy to handle using basic number theory techniques.
 
+## [Problem 597](https://projecteuler.net/problem=597)
+![mountain](/images/project-euler-solution-l39/IMG_4610.jpg)
+
+We label the boats from lowest to highest $ 1,2,3,\ldots,n $
+
+The standardized distance is $ \frac{L}{40}=45 $
+
+Boat `i` has to travel distance: $ 46-i $
+
+The speed formula is:
+
+$$
+v_i=-\log(X_i)
+$$
+
+where $X_i$ is uniform between `0` and `1`. That means each speed is an
+exponential random variable.
+
+Now define each boat's "relative speed to the target":
+
+$$
+\frac{v_i}{\text{target}-i}
+$$
+
+This measures how quickly boat `i` would reach the current target. A higher
+value means it reaches the target sooner. A lower value means it is slow
+relative to that target.
+
+The key observation is:
+
+> In any consecutive block of boats, the boat with the smallest relative speed
+> to the current target ends up lowest in that block's final order.
+
+Boat `k` becomes the bottom boat of that block's final order.
+
+Then the race splits into two independent smaller races:
+
+$$
+\begin{aligned}
+\text{boats below }k &\longrightarrow \text{race toward }k, \\
+\text{boats above }k &\longrightarrow \text{race toward the old target}.
+\end{aligned}
+$$
+
+### Parity of Permutations
+
+Now we also need to know whether the final permutation is even or odd. Instead of computing even probability directly, I compute the expected sign:
+
+$$
+\operatorname{sign}(\pi)=
+\begin{cases}
++1, & \pi\text{ is even}, \\
+-1, & \pi\text{ is odd}.
+\end{cases}
+$$
+
+Then:
+
+$$
+E=\Pr(\text{even})-\Pr(\text{odd}),\qquad
+\Pr(\text{even})+\Pr(\text{odd})=1
+$$
+
+so:
+
+$$
+\Pr(\text{even})=\frac{1+E}{2}
+$$
+
+When boat `k` becomes the lowest boat in the block, it moves past: $ k-\text{lo} $ boats. Each swap changes parity, so the sign contribution is:
+
+$$
+(-1)^{k-\text{lo}}
+$$
+
+So the recurrence is:
+
+$$
+\begin{aligned}
+\operatorname{expected\_sign}(\text{block})
+=\sum_k
+&\Pr(k\text{ is slowest}) \\
+&\cdot (-1)^{k-\text{lo}} \\
+&\cdot \operatorname{expected\_sign}(\text{left subrace}) \\
+&\cdot \operatorname{expected\_sign}(\text{right subrace}).
+\end{aligned}
+$$
+
+```python
+lower = expected_sign(lo, slowest - 1, Fraction(slowest))
+higher = expected_sign(slowest + 1, hi, target)
+```
+
+### Probability Calculation
+
+`P(k is slowest)` means:
+
+$$
+\Pr(\text{boat }k\text{ has the smallest relative speed toward the current target})
+$$
+
+Suppose the current target is at position `t`, and boat `i` is at position `i`.
+Then boat `i` has distance:
+
+$$
+d_i=t-i
+$$
+
+Its actual speed is:
+
+$$
+V_i=-\log(X_i)
+$$
+
+So the relative speed is:
+
+$$
+Y_i=\frac{V_i}{d_i}
+$$
+
+$$
+\begin{aligned}
+\Pr(Y_i>y)
+&=\Pr\left(\frac{V_i}{d_i}>y\right) \\
+&=\Pr(V_i>d_i y) \\
+&=e^{-d_i y}
+\end{aligned}
+$$
+
+$$
+\operatorname{PDF}(Y_i=y) = d_i e^{-d_i y}
+$$
+
+
+For independent exponential variables, the chance that one is the minimum is
+its rate divided by the sum of all rates:
+
+$$
+\begin{aligned}
+\Pr(Y_k\text{ is smallest}) &= \int_{y=0}^{+\infty} \operatorname{PDF}(Y_k =y)\cdot \prod_{i\neq k} \Pr(Y_k>y) \\
+&= \int_{y=0}^{+\infty}d_k \prod e^{-d_i y} \\
+&=\frac{d_k}{d_{\text{lo}}+d_{\text{lo}+1}+\cdots+d_{\text{hi}}} \\
+&=\frac{t-k}{\sum_{i=\text{lo}}^{\text{hi}}(t-i)}
+\end{aligned}
+$$
+
+
+
 ## [Problem 798](https://projecteuler.net/problem=798)
 ![garden](/images/project-euler-solution-l39/IMG_0850.jpg)
 
