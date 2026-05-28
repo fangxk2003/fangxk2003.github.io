@@ -32,7 +32,7 @@ Let's see T1 and T2 for common tissues (ms at 1.5 T):
 
 That's approximately 100 times RF pulse duration.
 
-## Technical Details
+## 90-degree Flip and 180-degree Flip in Spin Echo
 
 Now that an tuitive grasp of time is builded. Let's look at some technical details.
 
@@ -67,7 +67,7 @@ $$
 \Delta \phi_{spin-spin}(t)=\Delta \omega_{spin-spin} \cdot t
 $$
 
-Macroscopically, for the magnetic momentum:
+Macroscopically, for the magnetic moment:
 
 $$
 M_{xy}(t)=M_0\cdot e^{-\frac{t}{T_2}}\cdot e^{-\frac{t}{T_{2,inhom}}}=M_0\cdot e^{-\frac{t}{T_2^*}}
@@ -82,8 +82,13 @@ $$
 \Delta \phi_{spin-spin}(t)=\Delta \omega_{spin-spin} \cdot t
 $$
 
-Macroscopically, for the magnetic momentum:
+Macroscopically, for the magnetic moment:
 
 $$
 M_{xy}(t)=M_0\cdot e^{-\frac{t}{T_2}}\cdot e^{-\frac{|t-TE|}{T_{2,inhom}}}
 $$
+
+![spin-echo-amplitude](/images/better-understanding-of-mr/spin-echo-amplitude.png)
+
+## How Sinc RF Pulse Works under Slice Selection Gradient
+
