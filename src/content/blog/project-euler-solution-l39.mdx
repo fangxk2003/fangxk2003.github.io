@@ -13,6 +13,7 @@ heroImage: '../../assets/blog-placeholder-5.jpg'
 - [Problem 585](#problem-585)
 - [Problem 597](#problem-597)
 - [Problem 780](#problem-780)
+- [Problem 792](#problem-792)
 - [Problem 798](#problem-798)
 
 ## [Problem 483](https://projecteuler.net/problem=483)
@@ -763,6 +764,138 @@ $$
 The first two describe the geometry. The last two are the optimized counting formula.
 
 
+## [Problem 792](https://projecteuler.net/problem=792)
+![windmill](/images/project-euler-solution-l39/IMG_4957.jpg)
+
+### Lemma 1
+
+$$
+\sum \binom{2k}{k}x^k = \frac{1}{\sqrt{1 - 4x}}
+$$
+
+#### The Generalized Binomial Theorem
+The generalized binomial theorem states that for any real number $\alpha$, the
+expansion of $(1 + y)^\alpha$ is given by:
+
+$$
+(1 + y)^\alpha = \sum_{k=0}^{\infty} \binom{\alpha}{k} y^k
+$$
+
+#### Set Up the Function
+We want to find the series expansion for the right side of your equation. We can rewrite the function as a fractional power:
+
+$$
+\frac{1}{\sqrt{1 - 4x}} = (1 - 4x)^{-1/2}
+$$
+
+By matching this to the generalized binomial theorem, we can set $y=-4x$ and
+$\alpha=-1/2$. Plugging these into the theorem gives:
+
+$$
+(1 - 4x)^{-1/2} = \sum_{k=0}^{\infty} \binom{-1/2}{k} (-4x)^k
+$$
+
+#### Expand the Fractional Binomial Coefficient
+
+The core of the proof is simplifying the term $\binom{-1/2}{k}$. 
+
+$$
+\binom{-1/2}{k} = \frac{(-\frac{1}{2})(-\frac{3}{2})(-\frac{5}{2}) \cdots (-\frac{2k-1}{2})}{k!} \\
+ = \frac{(-1)^k}{2^k k!} [1 \cdot 3 \cdot 5 \cdots (2k - 1)]
+$$
+
+$$
+2 \cdot 4 \cdot 6 \cdots 2k = 2^k (1 \cdot 2 \cdot 3 \cdots k) = 2^k k!
+$$
+
+Multiplying the top and bottom by $2^k k!$ yields:
+
+$$
+\binom{-1/2}{k} = \frac{(-1)^k [1 \cdot 3 \cdots (2k - 1)] \cdot [2 \cdot 4 \cdots 2k]}{(2^k k!) \cdot (2^k k!)}
+$$
+
+$$
+\binom{-1/2}{k} = \frac{(-1)^k}{4^k} \binom{2k}{k}
+$$
+
+### How to Derive the Generating Function from Scratch
+The most powerful and standard technique is to use differential equations.
+
+#### Find the Recurrence Relation
+
+Let $a_k=\binom{2k}{k}$. We want to find a relationship between the next term
+$a_{k+1}$ and the current term $a_k$. Let's look at their ratio:
+
+$$
+\frac{a_{k+1}}{a_k} = \frac{\binom{2k+2}{k+1}}{\binom{2k}{k}}
+= \frac{4k+2}{k+1}
+$$
+
+#### Define the Function and its Derivative
+
+Let $F(x)$ be the generating function we are trying to find:
+
+$$
+F(x) = \sum_{k=0}^{\infty} a_k x^k
+$$
+
+Now, take the derivative of $F(x)$ with respect to $x$:
+
+$$
+F'(x) = \sum_{k=1}^{\infty} k a_k x^{k-1}
+= \sum_{k=0}^{\infty} (k+1) a_{k+1} x^k
+$$
+
+#### Translate the Recurrence into a Differential Equation
+
+Now, take the recurrence relation and multiply every term by $x^k$, then sum
+from $k=0$ to infinity:
+
+$$
+\sum_{k=0}^{\infty} (k+1)a_{k+1} x^k
+= \sum_{k=0}^{\infty} 4ka_k x^k
++ \sum_{k=0}^{\infty} 2a_k x^k
+$$
+
+Let's convert each of these sums into expressions of $F(x)$ and $F'(x)$:
+
+$$
+F'(x) = 4xF'(x) + 2F(x)
+$$
+
+#### Solve the Differential Equation
+
+$$
+\frac{F'(x)}{F(x)} = \frac{2}{1 - 4x}
+$$
+
+Integrate both sides with respect to x:
+
+$$
+\int \frac{1}{F(x)} dF = \int \frac{2}{1 - 4x} dx
+$$
+
+$$
+\ln(F(x)) = \ln((1 - 4x)^{-1/2}) + C
+$$
+
+Exponentiate both sides to solve for $F(x)$:
+
+$$
+F(x) = e^C(1 - 4x)^{-1/2}
+$$
+
+#### Find the Constant
+
+$$
+F(0)=\binom{0}{0}=1 \implies e^C = 1
+$$
+
+Therefore, the constant multiplier is just 1, and you arrive at your final closed-form equation:
+
+$$
+F(x) = (1 - 4x)^{-1/2} = \frac{1}{\sqrt{1 - 4x}}
+$$
 
 
 ## [Problem 798](https://projecteuler.net/problem=798)
