@@ -897,6 +897,130 @@ $$
 F(x) = (1 - 4x)^{-1/2} = \frac{1}{\sqrt{1 - 4x}}
 $$
 
+### Lemma 2
+
+$$
+v_2\left(\binom{2k}{k}\right)=s_2(k)
+$$
+
+where $s_2(k)$ is the number of $1$ bits in the binary representation of $k$.
+
+#### Legendre's Formula
+
+Legendre's formula states that for any prime $p$ and integer $n$:
+
+$$
+v_p(n!) = \frac{n - s_p(n)}{p - 1}
+$$
+
+where $s_p(n)$ is the sum of the digits of $n$ written in base $p$.
+
+For $p=2$, this becomes:
+
+$$
+v_2(n!) = n - s_2(n)
+$$
+
+#### Apply It to the Central Binomial Coefficient
+
+Start from the factorial form:
+
+$$
+\binom{2k}{k} = \frac{(2k)!}{(k!)^2}
+$$
+
+Using the additivity of valuations:
+
+$$
+\begin{aligned}
+v_2\left(\binom{2k}{k}\right)
+&= v_2((2k)!)-2v_2(k!) \\
+&= (2k - s_2(2k))-2(k-s_2(k)) \\
+&= 2s_2(k)-s_2(2k) \\
+&= s_2(k)
+\end{aligned}
+$$
+
+### Solution
+
+The trick is to stop trying to compute $S(n)$ directly.
+
+$$
+R(k)=(-2)^k\binom{2k}{k}
+$$
+
+$$
+S(n)=R(1)+R(2)+\cdots+R(n)
+$$
+
+The central-binomial generating function is
+
+$$
+\sum_{k\geq 0}\binom{2k}{k}x^k=\frac{1}{\sqrt{1-4x}}
+$$
+
+At $x=-2$, in the 2-adics,
+
+$$
+\sum_{k\geq 0}R(k)=-\frac{1}{3}
+$$
+
+$$
+\sum_{k\geq 1}R(k)=-\frac{4}{3}
+$$
+
+Therefore the infinite version satisfies:
+
+$$
+3\sum_{k\geq 1}R(k)+4=0
+$$
+
+Hence for finite $n$:
+
+$$
+3S(n)+4=-3\sum_{k>n}R(k)
+$$
+
+Since $-3$ is odd, it does not change the 2-adic valuation:
+
+$$
+u(n)=v_2\left(\sum_{k>n}R(k)\right)
+$$
+
+So $u(n)$ is the valuation of the tail, not the huge original sum.
+
+For each term,
+
+$$
+\begin{aligned}
+v_2(R(k))
+&=v_2((-2)^k)+v_2\left(\binom{2k}{k}\right) \\
+&=k+s_2(k)
+\end{aligned}
+$$
+
+That means the tail terms rapidly gain powers of two. If we sum only
+
+$$
+R(n+1),R(n+2),\dots,R(n+m)
+$$
+
+then the remaining tail is divisible by at least $2^{n+m+1}$
+
+So once the partial tail has valuation below $n+m+1$, that valuation is final.
+
+To avoid massive binomial coefficients, use the ratio
+
+$$
+\frac{R(k+1)}{R(k)}=-4\cdot\frac{2k+1}{k+1}
+$$
+
+and do modular 2-adic arithmetic, tracking:
+
+$$
+R(k)=2^e\cdot\operatorname{odd\_part}(R(k))
+$$
+
 
 ## [Problem 798](https://projecteuler.net/problem=798)
 ![garden](/images/project-euler-solution-l39/IMG_0850.jpg)
