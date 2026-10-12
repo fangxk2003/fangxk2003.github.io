@@ -186,6 +186,11 @@
 .cal-form input:not([type='checkbox']), .cal-form select, .cal-form textarea { display: block; width: 100%; border: 1px solid #e0e5d6; border-radius: 9px; color: var(--cal-ink); background: #fafbf6; padding: 12px; font-size: 13px; font-weight: 400; line-height: 1.3; min-height: 44px; }
 .cal-form input::placeholder, .cal-form textarea::placeholder { color: #b0b7a2; }
 .cal-form select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' width='12' height='8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23818d72' stroke-width='1.4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 13px center; padding-right: 34px; }
+.cal-food-picker { display: flex; flex-direction: column; gap: 7px; }
+.cal-form .cal-food-picker-controls input { border-radius: 9px 9px 0 0; }
+.cal-food-picker-controls select { border-radius: 0 0 9px 9px; margin-top: -1px; }
+.cal-food-picker-controls input:focus, .cal-food-picker-controls select:focus { position: relative; z-index: 1; }
+.cal-food-picker-controls select:disabled { color: #697564; opacity: .7; }
 .cal-form textarea { resize: vertical; overflow-wrap: anywhere; min-height: 90px; font-size: 11px; }
 .cal-form .cal-checkbox { flex-direction: row; align-items: flex-start; gap: 9px; font-weight: 400; font-size: 11px; cursor: pointer; padding: 1px 0; }
 .cal-checkbox input { accent-color: var(--cal-green); width: 15px; height: 15px; margin: 2px 0 0; cursor: pointer; flex-shrink: 0; }
