@@ -1,4 +1,4 @@
-import type { DaySettings } from './model.ts';
+import { addDays, todayISO, type DaySettings } from './model.ts';
 
 /** Imported Garmin readings stay separate from the editable food journal. */
 export interface GarminDay {
@@ -23,6 +23,9 @@ export interface EffectiveBurned {
   requestedSource: 'manual' | 'garmin';
   day?: GarminDay;
   fallback: boolean;
+  predicted: boolean;
+  restingDay?: GarminDay;
+  predictionUnavailable: boolean;
 }
 
 export function emptyGarminSnapshot(): GarminSnapshot {
@@ -72,10 +75,16 @@ export function normalizeGarminSnapshot(raw: unknown): GarminSnapshot {
   return { days, status: normalizeGarminStatus(value.status) };
 }
 
-/** Imported total = active + resting as recorded by Garmin. An explicit manual override wins. */
-export function effectiveBurned(date: string, settings: DaySettings, days: readonly GarminDay[]): EffectiveBurned {
+/** Today uses active so far plus yesterday's resting energy as a full-day prediction.
+ * Completed days keep Garmin's recorded total. An explicit manual override wins.
+ * Never substitute another date if the exact previous day's reading is absent. */
+export function effectiveBurned(date: string, settings: DaySettings, days: readonly GarminDay[], today = todayISO()): EffectiveBurned {
   const requestedSource = settings.burnedSource === 'manual' ? 'manual' : 'garmin';
   const day = days.find(item => item.date === date);
-  if (requestedSource === 'garmin' && day) return { burned: day.total, source: 'garmin', requestedSource, day, fallback: false };
-  return { burned: settings.burned, source: 'manual', requestedSource, day, fallback: requestedSource === 'garmin' };
+  if (requestedSource === 'garmin' && day) {
+    const restingDay = date === today ? days.find(item => item.date === addDays(date, -1)) : undefined;
+    if (restingDay) return { burned: day.active + restingDay.resting, source: 'garmin', requestedSource, day, restingDay, fallback: false, predicted: true, predictionUnavailable: false };
+    return { burned: day.total, source: 'garmin', requestedSource, day, fallback: false, predicted: false, predictionUnavailable: date === today };
+  }
+  return { burned: settings.burned, source: 'manual', requestedSource, day, fallback: requestedSource === 'garmin', predicted: false, predictionUnavailable: false };
 }

@@ -1,6 +1,6 @@
 # Garmin cloud sync
 
-The journal imports Garmin's daily total (active plus resting calories) into separate Supabase rows. Editable food data stays in `calories_state`, so background imports cannot overwrite a device's journal edits. An explicit `burnedSource: 'manual'` wins over imports; otherwise the imported date's total takes precedence, with a clearly labeled estimate when no reading exists. Today remains provisional.
+The journal imports Garmin's daily total (active plus resting calories) into separate Supabase rows. Editable food data stays in `calories_state`, so background imports cannot overwrite a device's journal edits. An explicit `burnedSource: 'manual'` wins over imports. For today, predicted burned calories equal today's imported active calories plus the exact previous day's imported resting calories. This prediction drives the budget and deficit and is labeled in the journal, targets, history, and Garmin details. Completed days use Garmin's recorded total. If yesterday is missing, the current partial total is labeled as such; if today's import is missing, the saved estimate is used. Predictions are computed in the interface and never overwrite imported totals. The interface rechecks the current date at midnight and when it regains focus.
 
 ## Deployment
 

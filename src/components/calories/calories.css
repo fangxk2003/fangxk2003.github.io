@@ -440,6 +440,8 @@
 .cal-entry-info > span { flex-wrap: wrap; gap: 4px; }
 .cal-food-footer .cal-text-button { gap: 3px; }
 .cal-burned-source { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 9px; margin-top: 13px; padding-top: 12px; border-top: 1px solid #dce2d0; font-size: 12px; color: #697564; line-height: 1.65; }
+.cal-burned-details { display: flex; flex-direction: column; gap: 5px; }
+.cal-burned-details > small { font-size: 11px; line-height: 1.7; color: #697564; }
 .cal-source-badge { display: inline-flex; align-items: center; padding: 2px 7px; border: 1px solid #ced8c0; border-radius: 6px; background: #e7eddc; color: #4f6545; font-size: 11px; font-weight: 550; white-space: nowrap; }
 .cal-garmin-bar { display: flex; align-items: center; width: 100%; gap: 12px; border: 1px solid var(--cal-border); border-radius: 12px; padding: 14px 17px; margin-top: 16px; background: #f1f3eb; text-align: left; min-height: 68px; transition: background .15s; }
 .cal-garmin-bar:hover { background: #e9eee0; }
@@ -467,9 +469,12 @@
 .cal-garmin-day-card > div:first-child > strong { font-size: 12px; font-weight: 550; }
 .cal-garmin-day-card > div:first-child > span { font-size: 11px; color: #617454; }
 .cal-garmin-day-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 19px 0; }
-.cal-garmin-day-values > span { font-size: 11px; color: #697564; }
-.cal-garmin-day-values strong { display: block; font-size: 20px; color: #4d6740; font-weight: 500; margin-top: 5px; letter-spacing: -.5px; }
+.cal-garmin-day-values > span { display: flex; flex-direction: column; font-size: 11px; color: #697564; }
+.cal-garmin-day-values strong { display: block; font-size: 20px; color: #4d6740; font-weight: 500; margin-top: auto; padding-top: 5px; letter-spacing: -.5px; }
 .cal-garmin-day-values small { font-size: 11px; font-weight: 400; letter-spacing: 0; }
+.cal-garmin-day-values em { display: block; font-size: 11px; font-style: normal; margin-top: 2px; }
+.cal-garmin-formula { display: block; margin-bottom: 6px; }
+.cal-garmin-raw-total { display: block; margin-top: 7px; }
 .cal-garmin-day-card > p { font-size: 12px; line-height: 1.8; color: #697564; border-top: 1px solid #dce5ce; padding-top: 12px; }
 .cal-garmin-help { margin: 20px 0 22px; }
 .cal-garmin-help > a { display: inline-flex; align-items: center; color: var(--cal-green); font-size: 12px; font-weight: 550; text-decoration: underline; text-underline-offset: 4px; min-height: 44px; }
