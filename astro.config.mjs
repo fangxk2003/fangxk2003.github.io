@@ -43,7 +43,7 @@ function rehypeMermaid() {
 export default defineConfig({
   // IMPORTANT: This matches your github username
   site: 'https://fangxk2003.github.io',
-  integrations: [mdx(), sitemap(), tailwind(), react()],
+  integrations: [mdx(), sitemap({ filter: (page) => !new URL(page).pathname.startsWith('/calories') }), tailwind(), react()],
   markdown: {
     // This allows you to use $E=mc^2$ in your posts
     remarkPlugins: [remarkMath],
