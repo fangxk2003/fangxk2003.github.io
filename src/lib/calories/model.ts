@@ -6,10 +6,10 @@ export interface Entry extends Macros { id: string; date: string; meal: string; 
 export interface DaySettings { burned: number; deficit: number; protein: number }
 export interface TrackerData { version: 1; foods: Food[]; entries: Entry[]; days: Record<string, DaySettings>; defaults: DaySettings }
 
-/** EU nutrition labels report carbohydrate separately from fibre (Annex XIV).
+/** This journal uses 4/4/9; fibre is tracked separately and excluded by preference.
  * Keep full precision for portion calculations; round only when displaying. */
 export function energyFromMacros(macros: Pick<Macros, 'protein' | 'carbs' | 'fat' | 'fiber'>): number {
-  return 4 * macros.protein + 4 * macros.carbs + 9 * macros.fat + 2 * macros.fiber;
+  return 4 * macros.protein + 4 * macros.carbs + 9 * macros.fat;
 }
 
 export function emptyData(): TrackerData {

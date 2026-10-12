@@ -87,4 +87,4 @@ No live Supabase project is created or changed by editing these repository files
 
 ## Automatic food energy
 
-Food energy is calculated as `4 × protein + 4 × carbohydrate + 9 × fat + 2 × fibre` kcal per reference portion. Enter carbohydrate separately from fibre, as on European nutrition labels. The food editor updates the calculated energy as you type; there is no energy input. This follows [EU energy conversion factors](https://eur-lex.europa.eu/legal-content/en/TXT/PDF/?uri=CELEX%3A32011R1169). Existing food references are recalculated for future logging, while historical entries retain their recorded nutrients and energy. Rounding is for display only.
+This journal uses `4 × protein + 4 × carbohydrate + 9 × fat` kcal per reference portion. Fibre is tracked separately and excluded from the app’s energy calculation. New nutrition inputs start empty; any left blank are saved as zero. The food editor updates the calculated energy as you type; there is no energy input. Existing food references are recalculated for future logging, while historical entries retain their recorded nutrients and energy. Rounding is for display only.

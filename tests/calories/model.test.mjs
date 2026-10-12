@@ -13,16 +13,18 @@ const entry = {
 };
 const backup = () => ({ ...emptyData(), foods: [{ ...food }], entries: [{ ...entry }] });
 
-test('energy derives from protein, carbohydrate, fat and separate fibre', () => {
+test('energy derives from protein, carbohydrate and fat while excluding fibre', () => {
   assert.equal(energyFromMacros({ protein: 30, carbs: 1, fat: 7, fiber: 0 }), 187);
-  assert.equal(energyFromMacros({ protein: 0, carbs: 10, fat: 0, fiber: 5 }), 50);
+  assert.equal(energyFromMacros({ protein: 30, carbs: 1, fat: 7, fiber: 10 }), 187);
+  assert.equal(energyFromMacros({ protein: 0, carbs: 10, fat: 0, fiber: 5 }), 40);
+  assert.equal(energyFromMacros({ protein: 0, carbs: 0, fat: 0, fiber: 5 }), 0);
 });
 
 test('derived energy retains precision when scaling decimal portions', () => {
   const nutrients = { protein: 2.5, carbs: 1.25, fat: 0.5, fiber: 1.5 };
   const reference = { ...food, ...nutrients, calories: energyFromMacros(nutrients) };
-  assert.equal(reference.calories, 22.5);
-  assert.equal(macrosForFood(reference, 37.5).calories, 8.4375);
+  assert.equal(reference.calories, 19.5);
+  assert.equal(macrosForFood(reference, 37.5).calories, 7.3125);
 });
 
 test('quantity scales every nutrient from the food reference portion', () => {
@@ -49,9 +51,9 @@ test('normalization preserves historical nutrient snapshots and day-specific tar
   data.foods[0].calories = 99;
   data.days['2026-10-12'] = { burned: 2900, deficit: 450, protein: 160 };
   const result = normalizeData(data);
-  assert.equal(result.foods[0].calories, 91);
+  assert.equal(result.foods[0].calories, 81);
   assert.equal(result.entries[0].calories, 127.5);
-  assert.equal(macrosForFood(result.foods[0], 150).calories, 136.5);
+  assert.equal(macrosForFood(result.foods[0], 150).calories, 121.5);
   const saved = result.entries[0];
   assert.equal(macrosForFood({ ...saved, id: saved.foodId, name: saved.foodName, baseQuantity: saved.quantity }, 75).calories, 63.75);
   assert.deepEqual(result.days['2026-10-12'], { burned: 2900, deficit: 450, protein: 160 });
