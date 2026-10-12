@@ -290,3 +290,34 @@ test('a refresh completed after the remember deadline cannot send an authenticat
   assert.equal(h.calls.some(call => call.address.pathname === '/auth/v1/user'), false);
   assert.equal(sessionIn(h.localStorage), undefined);
 });
+
+test('Garmin reads use owner/session access and leave journal revision unchanged', async () => {
+  const reading = { date: '2026-10-12', active: 500, resting: 1700, total: 2200, synced_at: '2026-10-12T18:00:00Z' };
+  const status = { state: 'connected', last_attempt_at: reading.synced_at, last_sync_at: reading.synced_at, last_error_code: null };
+  const h = harness(call => {
+    if (call.address.pathname === '/rest/v1/calories_state') {
+      if (call.method === 'GET') return json([{ data: emptyData(), revision: 7 }]);
+      assert.equal(call.address.searchParams.get('revision'), 'eq.7');
+      return json([{ revision: 8 }]);
+    }
+    assert.equal(call.headers.get('Authorization'), 'Bearer access-initial');
+    assert.equal(call.address.searchParams.get('owner_id'), `eq.${userId}`);
+    if (call.address.pathname === '/rest/v1/calories_garmin_days') return json([reading]);
+    if (call.address.pathname === '/rest/v1/calories_garmin_status') return json([status]);
+    throw new Error('Unexpected request');
+  });
+  await h.client.signIn('owner@example.com', 'password-value', true);
+  await h.client.load();
+  assert.deepEqual(await h.client.loadGarmin(), { days: [reading], status });
+  await h.client.save(emptyData());
+});
+
+test('Garmin denied/expired access does not look like an empty disconnected account', async () => {
+  const h = harness(() => json([]));
+  await h.client.signIn('owner@example.com', 'password-value', true);
+  await assert.rejects(h.client.loadGarmin(), /setup is incomplete|access has expired/);
+  h.setTime(start + REMEMBER_MS);
+  const before = h.calls.length;
+  await assert.rejects(h.client.loadGarmin(), /session has ended/);
+  assert.equal(h.calls.length, before);
+});

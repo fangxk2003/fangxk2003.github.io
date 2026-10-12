@@ -3,7 +3,7 @@ export type FoodState = 'Raw' | 'Cooked' | 'As served';
 export interface Macros { carbs: number; protein: number; fat: number; fiber: number; calories: number }
 export interface Food extends Macros { id: string; name: string; baseQuantity: number; unit: Unit; state: FoodState }
 export interface Entry extends Macros { id: string; date: string; meal: string; foodId: string; foodName: string; quantity: number; unit: Unit; state: FoodState }
-export interface DaySettings { burned: number; deficit: number; protein: number }
+export interface DaySettings { burned: number; deficit: number; protein: number; burnedSource?: 'manual' | 'garmin' }
 export interface TrackerData { version: 1; foods: Food[]; entries: Entry[]; days: Record<string, DaySettings>; defaults: DaySettings }
 
 /** This journal uses 4/4/9; fibre is tracked separately and excluded by preference.
@@ -66,7 +66,8 @@ function macros(value: Record<string, unknown>): Macros {
 }
 function settings(raw: unknown): DaySettings {
   const v = record(raw);
-  return { burned: number(v.burned, 'calories burned'), deficit: number(v.deficit, 'deficit target'), protein: number(v.protein, 'protein target') };
+  if (v.burnedSource !== undefined && v.burnedSource !== 'manual' && v.burnedSource !== 'garmin') throw new Error('Invalid calories burned source.');
+  return { burned: number(v.burned, 'calories burned'), deficit: number(v.deficit, 'deficit target'), protein: number(v.protein, 'protein target'), ...(v.burnedSource !== undefined ? { burnedSource: v.burnedSource } : {}) };
 }
 
 /** Strict validation for imported and remotely loaded data. No silent data loss. */

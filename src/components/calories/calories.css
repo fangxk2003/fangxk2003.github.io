@@ -439,4 +439,51 @@
 .cal-sync-error { color: #a95746; }
 .cal-entry-info > span { flex-wrap: wrap; gap: 4px; }
 .cal-food-footer .cal-text-button { gap: 3px; }
+.cal-burned-source { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 9px; margin-top: 13px; padding-top: 12px; border-top: 1px solid #dce2d0; font-size: 12px; color: #697564; line-height: 1.65; }
+.cal-source-badge { display: inline-flex; align-items: center; padding: 2px 7px; border: 1px solid #ced8c0; border-radius: 6px; background: #e7eddc; color: #4f6545; font-size: 11px; font-weight: 550; white-space: nowrap; }
+.cal-garmin-bar { display: flex; align-items: center; width: 100%; gap: 12px; border: 1px solid var(--cal-border); border-radius: 12px; padding: 14px 17px; margin-top: 16px; background: #f1f3eb; text-align: left; min-height: 68px; transition: background .15s; }
+.cal-garmin-bar:hover { background: #e9eee0; }
+.cal-garmin-symbol { display: inline-flex; justify-content: center; align-items: center; flex-shrink: 0; width: 36px; height: 36px; color: #617454; background: #e6ecd9; border-radius: 11px; }
+.cal-garmin-bar-text { flex: 1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; min-width: 0; }
+.cal-garmin-bar-text > strong { font-size: 12px; font-weight: 550; }
+.cal-garmin-bar-text > span { font-size: 12px; line-height: 1.65; color: #697564; }
+.cal-garmin-bar > svg { color: #6e7f61; }
+.cal-garmin-attention { background: #fbf3e8; border-color: #e7d9c0; }
+.cal-garmin-attention:hover { background: #f5ecd9; }
+.cal-garmin-attention .cal-garmin-symbol { background: #f1e5cf; color: #92704d; }
+.cal-garmin-status-card { display: flex; align-items: flex-start; gap: 15px; background: #f0f4e8; border: 1px solid #e1e8d4; padding: 18px; border-radius: 12px; }
+.cal-garmin-status-card .cal-garmin-symbol { width: 42px; height: 42px; }
+.cal-garmin-status-card strong { display: block; font-size: 14px; font-weight: 550; }
+.cal-garmin-status-card p { color: #697564; font-size: 12px; line-height: 1.8; margin-top: 6px; }
+.cal-garmin-state-needs_login, .cal-garmin-state-error, .cal-garmin-stale { background: #fbf3e8; border-color: #e7d9c0; }
+.cal-garmin-state-needs_login .cal-garmin-symbol, .cal-garmin-state-error .cal-garmin-symbol, .cal-garmin-stale .cal-garmin-symbol { background: #f1e5cf; color: #92704d; }
+.cal-garmin-read-error { margin-top: 15px !important; }
+.cal-garmin-times { margin: 24px 0; font-size: 12px; }
+.cal-garmin-times > div { display: flex; justify-content: space-between; gap: 20px; padding: 9px 0; border-bottom: 1px solid #e8eddf; }
+.cal-garmin-times dt { color: #697564; }
+.cal-garmin-times dd { margin: 0; color: #4d6143; text-align: right; overflow-wrap: anywhere; }
+.cal-garmin-day-card { border: 1px solid #e1e8d4; background: #f0f4e8; border-radius: 12px; padding: 17px 18px; }
+.cal-garmin-day-card > div:first-child { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.cal-garmin-day-card > div:first-child > strong { font-size: 12px; font-weight: 550; }
+.cal-garmin-day-card > div:first-child > span { font-size: 11px; color: #617454; }
+.cal-garmin-day-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 19px 0; }
+.cal-garmin-day-values > span { font-size: 11px; color: #697564; }
+.cal-garmin-day-values strong { display: block; font-size: 20px; color: #4d6740; font-weight: 500; margin-top: 5px; letter-spacing: -.5px; }
+.cal-garmin-day-values small { font-size: 11px; font-weight: 400; letter-spacing: 0; }
+.cal-garmin-day-card > p { font-size: 12px; line-height: 1.8; color: #697564; border-top: 1px solid #dce5ce; padding-top: 12px; }
+.cal-garmin-help { margin: 20px 0 22px; }
+.cal-garmin-help > a { display: inline-flex; align-items: center; color: var(--cal-green); font-size: 12px; font-weight: 550; text-decoration: underline; text-underline-offset: 4px; min-height: 44px; }
+.cal-garmin-help > p { font-size: 12px; line-height: 1.8; color: #697564; margin-top: 2px; }
+.cal-garmin-import-note { font-size: 12px; color: #896a54; line-height: 1.8; margin: -10px 0 22px !important; }
+.cal-garmin-disconnect { min-height: 44px; margin: -8px 0 14px; }
+.cal-history-source { display: block; font-size: 11px; font-style: normal; color: #697564; margin-top: 4px; }
+.cal-form input[readonly] { background: #eef3e5; border-color: #dce5cf; color: #4f6b41; }
+@media (max-width: 760px) {
+  .cal-garmin-bar { padding: 13px 15px; }
+  .cal-garmin-bar-text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .cal-garmin-bar-text > span { font-size: 12px; }
+  .cal-garmin-day-values { gap: 9px; }
+  .cal-garmin-day-values strong { font-size: 18px; }
+  .cal-garmin-times > div { gap: 13px; }
+}
 @media (prefers-reduced-motion: reduce) { .calorie-app *, .calorie-app *::before, .calorie-app *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }

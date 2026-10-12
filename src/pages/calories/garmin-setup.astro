@@ -1,0 +1,33 @@
+---
+const localFolder = '~/Library/Application Support/Calories Garmin';
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta name="robots" content="noindex,nofollow"/>
+    <title>Connect Garmin · Calories</title>
+  </head>
+  <body>
+    <main>
+      <a href="/calories/">← Back to your journal</a>
+      <p class="eyebrow">GARMIN CONNECT</p>
+      <h1>Connect once.<br/>Keep your days in sync.</h1>
+      <p>Your cloud worker is configured. Finish the one-time Garmin sign-in on your Mac to start importing daily calories.</p>
+      <ol>
+        <li><strong>Open the connection helper.</strong><p>In Finder, press <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd>, paste this folder, and open <b>Connect Garmin.command</b>.</p><code>{localFolder}</code></li>
+        <li><strong>Sign in privately.</strong><p>Enter your Garmin email and password in the Terminal window. Your password stays hidden while you type. Enter Garmin’s verification code if asked.</p></li>
+        <li><strong>Return to your journal.</strong><p>Open Garmin Connect in the journal and choose “Refresh imported data”. The first sign-in imports the past 30 days; the cloud worker then checks today and the previous seven days once an hour.</p></li>
+      </ol>
+      <p class="note">Sync your watch with Garmin Connect first. Today’s total is provisional. Each day uses active + resting calories; incomplete readings leave the last valid value in place.</p>
+      <h2>When Garmin asks you to reconnect</h2>
+      <p>Open the same helper and sign in again. The worker stores an encrypted session rather than your password. You can stop imports with “Disconnect Garmin” in the journal; previously imported calorie readings are kept.</p>
+      <p>You can change any day to a manual calorie value in “Daily targets”. That override stays in place after future imports.</p>
+      <p class="footnote">This personal connection uses an unofficial Garmin client. Garmin can change its sign-in requirements, and GitHub’s hourly jobs can be delayed. The journal shows the last successful import so you can check freshness.</p>
+    </main>
+    <style>
+      :global(*){box-sizing:border-box} :global(body){margin:0;background:#f7f8f2;color:#27382f;font:17px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:740px;margin:auto;padding:48px 24px 70px}a{color:#2a5944}h1{font-size:clamp(34px,6vw,48px);line-height:1.12;letter-spacing:-1.8px;font-weight:600}h2{font-size:23px;margin-top:35px}.eyebrow{margin-top:40px;font-size:12px;letter-spacing:2px;color:#68755f}ol{padding-left:25px;margin:30px 0}li{padding-left:8px;margin-bottom:24px}li p{margin:8px 0}code{display:block;padding:14px;background:#fff;border:1px solid #dfe4d6;border-radius:12px;font-size:14px;overflow-wrap:anywhere}kbd{font-size:14px;background:#edf0e5;border-radius:4px;padding:2px 5px}.note{padding:20px;background:#eaf0e1;border-radius:14px}.footnote{font-size:14px;color:#68755f;margin-top:30px}
+    </style>
+  </body>
+</html>

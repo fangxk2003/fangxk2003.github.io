@@ -1,5 +1,6 @@
 import { emptyData, normalizeData, type TrackerData } from './model.ts';
 import { deployedConfiguration } from './config.ts';
+import { normalizeGarminSnapshot, type GarminSnapshot } from './garmin.ts';
 
 export interface Configuration { url: string; key: string; email?: string }
 interface Session { accessToken: string; refreshToken: string; userId: string; email: string; expiresAt: number; deadline: number; remember: boolean }
@@ -200,6 +201,33 @@ export function createClient(options: ClientOptions = {}) {
       revision = rows[0].revision;
       needsReload = false;
       return data;
+    },
+    async disconnectGarmin(): Promise<void> {
+      const response = await authenticated('/rest/v1/rpc/calories_garmin_disconnect', { method: 'POST', body: '{}' });
+      if (!response.ok) throw await errorFor(response);
+    },
+    async loadGarmin(): Promise<GarminSnapshot> {
+      const current = await ensureSession();
+      const access = await authenticated('/rest/v1/rpc/calories_access_allowed', { method: 'POST', body: '{}' });
+      if (!access.ok) throw await errorFor(access);
+      if (await access.json() !== true) throw new Error('Your session no longer has access. Sign in again.');
+      const owner = encodeURIComponent(current.userId);
+      const days: unknown[] = [];
+      // PostgREST caps a response at 1,000 rows. Page through older journal dates too.
+      for (let offset = 0; offset < 100000; offset += 1000) {
+        const response = await authenticated(`/rest/v1/calories_garmin_days?owner_id=eq.${owner}&select=date,active,resting,total,synced_at&order=date.desc&limit=1000&offset=${offset}`);
+        if (!response.ok) throw await errorFor(response);
+        const page = await response.json();
+        if (!Array.isArray(page)) throw new Error('The Garmin data response was invalid.');
+        days.push(...page);
+        if (page.length < 1000) break;
+        if (offset === 99000) throw new Error('The Garmin history response is too large.');
+      }
+      const response = await authenticated(`/rest/v1/calories_garmin_status?owner_id=eq.${owner}&select=state,last_attempt_at,last_sync_at,last_error_code`);
+      if (!response.ok) throw await errorFor(response);
+      const rows = await response.json();
+      if (!Array.isArray(rows) || rows.length !== 1) throw new Error('Garmin storage setup is incomplete, or access has expired.');
+      return normalizeGarminSnapshot({ days, status: rows[0] });
     },
     async save(value: TrackerData): Promise<void> {
       const data = normalizeData(value);
