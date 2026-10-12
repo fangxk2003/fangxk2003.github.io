@@ -6,6 +6,12 @@ export interface Entry extends Macros { id: string; date: string; meal: string; 
 export interface DaySettings { burned: number; deficit: number; protein: number }
 export interface TrackerData { version: 1; foods: Food[]; entries: Entry[]; days: Record<string, DaySettings>; defaults: DaySettings }
 
+/** EU nutrition labels report carbohydrate separately from fibre (Annex XIV).
+ * Keep full precision for portion calculations; round only when displaying. */
+export function energyFromMacros(macros: Pick<Macros, 'protein' | 'carbs' | 'fat' | 'fiber'>): number {
+  return 4 * macros.protein + 4 * macros.carbs + 9 * macros.fat + 2 * macros.fiber;
+}
+
 export function emptyData(): TrackerData {
   return { version: 1, foods: [], entries: [], days: {}, defaults: { burned: 3200, deficit: 500, protein: 175 } };
 }
@@ -69,7 +75,8 @@ export function normalizeData(raw: unknown): TrackerData {
   if (v.version !== 1 || !Array.isArray(v.foods) || !Array.isArray(v.entries) || v.foods.length > 10000 || v.entries.length > 100000) throw new Error('This is not a supported Calories backup.');
   const foods: Food[] = v.foods.map(rawFood => {
     const f = record(rawFood);
-    return { id: text(f.id, 'food ID'), name: text(f.name, 'food name'), baseQuantity: number(f.baseQuantity, 'base quantity', true), unit: unit(f.unit), state: state(f.state), ...macros(f) };
+    const nutrients = macros(f);
+    return { id: text(f.id, 'food ID'), name: text(f.name, 'food name'), baseQuantity: number(f.baseQuantity, 'base quantity', true), unit: unit(f.unit), state: state(f.state), ...nutrients, calories: number(energyFromMacros(nutrients), 'calculated calories') };
   });
   const entries: Entry[] = v.entries.map(rawEntry => {
     const e = record(rawEntry);

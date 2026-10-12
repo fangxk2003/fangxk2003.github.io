@@ -84,3 +84,7 @@ Use **History → Export journal → JSON** periodically to download a complete 
 | Verification reports a permission error | Run the verification as SQL Editor's default `postgres` role, after setup; keep all statements in the same run. |
 
 No live Supabase project is created or changed by editing these repository files. Production sign-in and synchronization can be verified after you connect your own project and run the setup.
+
+## Automatic food energy
+
+Food energy is calculated as `4 × protein + 4 × carbohydrate + 9 × fat + 2 × fibre` kcal per reference portion. Enter carbohydrate separately from fibre, as on European nutrition labels. The food editor updates the calculated energy as you type; there is no energy input. This follows [EU energy conversion factors](https://eur-lex.europa.eu/legal-content/en/TXT/PDF/?uri=CELEX%3A32011R1169). Existing food references are recalculated for future logging, while historical entries retain their recorded nutrients and energy. Rounding is for display only.
