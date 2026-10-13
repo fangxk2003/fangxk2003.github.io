@@ -483,6 +483,8 @@
 .cal-carry-values small { font-size: 11px; font-weight: 400; color: #697564; letter-spacing: 0; }
 .cal-carry-panel > p { font-size: 12px; color: #697564; line-height: 1.75; margin-top: 15px; }
 .cal-carry-panel > p.cal-carry-debt-note { color: #856448; background: #fbf3e8; border: 1px solid #e7d9c0; border-radius: 7px; padding: 9px 12px; margin-top: 11px; }
+.cal-carry-panel > p.cal-carry-pending-note, .cal-history-pending-note { padding: 10px 12px; color: #697564; background: #f0f3e8; border: 1px solid #dfe7d0; border-radius: 7px; font-size: 12px; line-height: 1.75; }
+.cal-history-pending-note { margin: -10px 0 20px !important; }
 .cal-target-date-hint { font-size: 12px; color: #697564; background: #f1f4e9; border: 1px solid #e3e9d7; border-radius: 8px; padding: 12px 14px; line-height: 1.75; margin: -8px 0 23px !important; }
 .cal-target-carry-preview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; margin: 15px 0 12px; border-top: 1px solid #dce5ce; padding-top: 12px; }
 .cal-target-carry-preview > span { color: #697564; font-size: 11px; }
@@ -525,6 +527,11 @@
 .cal-garmin-day-values strong { display: block; font-size: 20px; color: #4d6740; font-weight: 500; margin-top: auto; padding-top: 5px; letter-spacing: -.5px; }
 .cal-garmin-day-values small { font-size: 11px; font-weight: 400; letter-spacing: 0; }
 .cal-garmin-day-values em { display: block; font-size: 11px; font-style: normal; margin-top: 2px; }
+.cal-garmin-day-values.cal-garmin-estimate-values { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cal-garmin-estimate-values > span:first-child > strong { font-size: 17px; letter-spacing: -.2px; }
+.cal-garmin-unavailable-card { background: #f6f7f1; }
+.cal-garmin-unavailable-value { color: #697564; font-size: 27px; line-height: 1.3; margin: 20px 0; }
+.cal-garmin-unavailable-value small { font-size: 12px; }
 .cal-garmin-formula { display: block; margin-bottom: 6px; }
 .cal-garmin-raw-total { display: block; margin-top: 7px; }
 .cal-garmin-day-card > p { font-size: 12px; line-height: 1.8; color: #697564; border-top: 1px solid #dce5ce; padding-top: 12px; }

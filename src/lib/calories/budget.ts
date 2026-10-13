@@ -1,5 +1,5 @@
 import { addDays, todayISO, type TrackerData } from './model.ts';
-import { effectiveBurned, type GarminDay } from './garmin.ts';
+import { effectiveBurned, latestCompletedGarminDay, type GarminDay } from './garmin.ts';
 
 function finite(value: number, label: string, nonNegative = false): number {
   if (!Number.isFinite(value) || (nonNegative && value < 0)) throw new Error(`Invalid ${label}.`);
@@ -20,6 +20,7 @@ export interface BalanceDay extends ReturnType<typeof adjustedBudget> {
   date: string;
   eaten: number;
   balance: number;
+  available: boolean;
   settled: boolean;
 }
 export interface CalorieLedger { days: Record<string, BalanceDay>; completed: BalanceDay[] }
@@ -31,15 +32,16 @@ export function calorieLedger(data: TrackerData, garminDays: readonly GarminDay[
   const eaten = new Map<string, number>();
   for (const entry of data.entries) eaten.set(entry.date, finite((eaten.get(entry.date) ?? 0) + finite(entry.calories, 'logged calories', true), 'daily logged calories'));
   const imported = new Map(garminDays.map(day => [day.date, day]));
+  const latestResting = latestCompletedGarminDay(garminDays, currentDay);
   const days: Record<string, BalanceDay> = {};
   const completed: BalanceDay[] = [];
   let carry = 0;
   for (const date of [...eaten.keys()].sort()) {
     const settings = data.days[date] ?? data.defaults;
-    const readings = [imported.get(date), imported.get(addDays(date, -1))].filter((day): day is GarminDay => day !== undefined);
-    const burned = effectiveBurned(date, settings, readings, currentDay).burned;
-    const amounts = adjustedBudget(burned, settings.deficit, carry);
-    const row: BalanceDay = { date, ...amounts, eaten: eaten.get(date)!, balance: finite(amounts.rawBudget - eaten.get(date)!, 'running calorie balance'), settled: date < currentDay };
+    const readings = [imported.get(date), imported.get(addDays(date, -1)), latestResting].filter((day): day is GarminDay => day !== undefined);
+    const reading = effectiveBurned(date, settings, readings, currentDay);
+    const amounts = adjustedBudget(reading.burned, settings.deficit, carry);
+    const row: BalanceDay = { date, ...amounts, eaten: eaten.get(date)!, balance: finite(amounts.rawBudget - eaten.get(date)!, 'running calorie balance'), available: !reading.unavailable, settled: date < currentDay && !reading.unavailable };
     days[date] = row;
     if (row.settled) { carry = row.balance; completed.push(row); }
   }

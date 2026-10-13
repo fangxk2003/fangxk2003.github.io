@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { addDays, dayTotals, emptyData, energyFromMacros, macrosForFood, manualMealEntry, normalizeData, todayISO, type DaySettings, type Entry, type Food, type TrackerData } from '../../lib/calories/model';
+import { addDays, dayTotals, emptyData, energyFromMacros, macrosForFood, manualMealEntry, normalizeData, settingsForDay, todayISO, type DaySettings, type Entry, type Food, type TrackerData } from '../../lib/calories/model';
 import { createClient } from '../../lib/calories/client';
 import { effectiveBurned, emptyGarminSnapshot, type EffectiveBurned, type GarminDay, type GarminSnapshot, type GarminStatus } from '../../lib/calories/garmin';
 import { DAILY_PROTEIN_GRAMS, macroTargets, nutrientProgress } from '../../lib/calories/nutrition';
@@ -44,13 +44,16 @@ const newId = () => crypto.randomUUID();
 const unitLabel = (unit: string, quantity: number) => unit === 'piece' ? (quantity === 1 ? 'piece' : 'pieces') : unit;
 const previewNumber = (value: string) => Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : 0;
 const syncTime = (timestamp: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(timestamp));
-const burnedLabel = (value: EffectiveBurned) => value.source === 'garmin' ? value.predicted ? 'Garmin prediction' : value.predictionUnavailable ? 'Garmin partial total' : 'Garmin' : value.requestedSource === 'manual' ? 'Manual override' : 'Manual estimate';
+const burnedLabel = (value: EffectiveBurned) => value.source === 'garmin' ? value.unavailable ? 'Garmin unavailable' : value.restingEstimate ? 'Garmin resting estimate' : value.predicted ? 'Garmin prediction' : value.predictionUnavailable ? 'Garmin partial total' : 'Garmin' : 'Manual override';
 function burnedFormula(value: EffectiveBurned) {
+  if (value.unavailable) return 'No imported total is available for this date, and no completed Garmin resting reading is available yet';
+  if (value.restingEstimate && value.restingDay) return `${number(value.restingDay.resting)} resting kcal from ${readableDate(value.restingDay.date, { day: 'numeric', month: 'short', year: 'numeric' })}, used as an estimate for this day`;
   if (value.predicted && value.day && value.restingDay) return `${number(value.day.active)} active today + ${number(value.restingDay.resting)} resting yesterday (${readableDate(value.restingDay.date, { day: 'numeric', month: 'short' })})`;
   if (value.predictionUnavailable) return 'Yesterday’s resting calories are unavailable. Using Garmin’s partial total so far';
   return value.day ? `${number(value.day.active)} active + ${number(value.day.resting)} resting kcal` : '';
 }
 function burnedSyncTime(value: EffectiveBurned) {
+  if (value.restingEstimate && value.restingDay) return `Resting imported ${syncTime(value.restingDay.synced_at)}`;
   if (!value.day) return '';
   return value.predicted && value.restingDay && value.day.synced_at !== value.restingDay.synced_at ? `Active updated ${syncTime(value.day.synced_at)} · Resting imported ${syncTime(value.restingDay.synced_at)}` : `Updated ${syncTime(value.day.synced_at)}`;
 }
@@ -335,7 +338,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
   }
 
   function saveEntry(entry: Entry) {
-    updateData(current => ({ ...current, days: { ...current.days, [entry.date]: current.days[entry.date] ?? current.defaults }, entries: current.entries.some(item => item.id === entry.id) ? current.entries.map(item => item.id === entry.id ? entry : item) : [...current.entries, entry] }));
+    updateData(current => ({ ...current, days: { ...current.days, [entry.date]: settingsForDay(current, entry.date) }, entries: current.entries.some(item => item.id === entry.id) ? current.entries.map(item => item.id === entry.id ? entry : item) : [...current.entries, entry] }));
     setModal(null);
   }
 
@@ -343,8 +346,9 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
 
   const dayEntries = data.entries.filter(entry => entry.date === date);
   const totals = dayTotals(dayEntries);
-  const targets = data.days[date] ?? data.defaults;
+  const targets = settingsForDay(data, date);
   const burned = effectiveBurned(date, targets, garmin.days, currentDay);
+  const burnedSyncDay = burned.day ?? burned.restingDay;
   const ledger = useMemo(() => calorieLedger(data, garmin.days, currentDay), [data, garmin.days, currentDay]);
   const carryIn = carryBefore(date, ledger);
   const allowance = adjustedBudget(burned.burned, targets.deficit, carryIn);
@@ -352,6 +356,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
   const remaining = budget - totals.calories;
   const rawBalance = allowance.rawBudget - totals.calories;
   const selectedBalance = ledger.days[date];
+  const hasPendingLoggedDays = Object.values(ledger.days).some(row => row.date < currentDay && !row.available);
   const deficit = burned.burned - totals.calories;
   const calorieProgress = nutrientProgress(totals.calories, budget);
   const caloriePercent = calorieProgress.barPercent;
@@ -409,9 +414,9 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
             <div className="cal-energy-card">
               <div className="cal-card-top"><span className="cal-eyebrow">ENERGY TODAY</span><button className="cal-icon-button" onClick={() => setModal({ type: 'targets' })} aria-label="Edit daily targets" title="Edit daily targets"><Icon name="settings" size={19}/></button></div>
               <div className="cal-energy-main"><div><div className="cal-energy-value">{number(totals.calories)}<span>kcal</span></div><p>of {number(budget, 1)} kcal {burned.predicted ? 'predicted ' : ''}budget with carry</p></div><div className="cal-ring" style={{ '--cal-progress': `${caloriePercent}%` } as React.CSSProperties}><div><span>{calorieProgress.percent === null ? '—' : <>{number(caloriePercent)}<small>%</small></>}</span><small>{budget > 0 ? 'of budget' : 'no budget'}</small></div></div></div>
-              <div className="cal-energy-bottom"><span>{remaining >= 0 ? 'Remaining' : 'Above budget'}<strong>{number(Math.abs(remaining), 1)} <small>kcal</small></strong></span><span>{burned.predicted ? 'Predicted burned' : 'Burned'}<strong>{number(burned.burned)} <small>kcal</small></strong></span><span>{burned.predicted ? deficit >= 0 ? 'Predicted deficit' : 'Predicted surplus' : deficit >= 0 ? 'Deficit' : 'Surplus'}<strong>{number(Math.abs(deficit))} <small>kcal</small></strong></span></div>
+              <div className="cal-energy-bottom"><span>{remaining >= 0 ? 'Remaining' : 'Above budget'}<strong>{number(Math.abs(remaining), 1)} <small>kcal</small></strong></span><span>{burned.predicted ? 'Predicted burned' : burned.restingEstimate ? 'Estimated burned' : 'Burned'}<strong>{burned.unavailable ? '—' : number(burned.burned)} <small>kcal</small></strong></span><span>{burned.unavailable ? 'Deficit / surplus' : burned.predicted ? deficit >= 0 ? 'Predicted deficit' : 'Predicted surplus' : burned.restingEstimate ? deficit >= 0 ? 'Estimated deficit' : 'Estimated surplus' : deficit >= 0 ? 'Deficit' : 'Surplus'}<strong>{burned.unavailable ? '—' : number(Math.abs(deficit))} <small>kcal</small></strong></span></div>
               <div className="cal-target-note"><span>Deficit target: {number(targets.deficit, 1)} kcal</span><button className="cal-text-button" onClick={() => setModal({ type: 'targets' })}>Edit deficit target<Icon name="edit" size={13}/></button></div>
-              <div className="cal-burned-source"><span className="cal-source-badge">{burnedLabel(burned)}</span>{burned.source === 'garmin' && burned.day ? <div className="cal-burned-details"><span>{burnedFormula(burned)}</span><small>{burnedSyncTime(burned)}{date === currentDay ? ' · Today is provisional' : ''}{garmin.status.state === 'not_connected' ? ' · Automatic imports stopped' : date === currentDay && staleImport(burned.day.synced_at) ? ' · Needs a new import' : ''}</small></div> : <span>{burned.fallback ? 'No Garmin import for this day. Using your estimate.' : 'Your saved calories burned value.'}</span>}</div>
+              <div className="cal-burned-source"><span className="cal-source-badge">{burnedLabel(burned)}</span>{burned.source === 'garmin' ? <div className="cal-burned-details"><span>{burnedFormula(burned)}</span>{burnedSyncDay && <small>{burnedSyncTime(burned)}{date === currentDay ? ' · Today is provisional' : ''}{garmin.status.state === 'not_connected' ? ' · Automatic imports stopped' : date === currentDay && staleImport(burnedSyncDay.synced_at) ? ' · Needs a new import' : ''}</small>}</div> : <span>Your saved manual calories burned value.</span>}</div>
             </div>
             <div className="cal-nutrients-card">
               <div className="cal-card-top"><span className="cal-eyebrow">DAILY MACRO TARGETS</span><span className="cal-pill">grams</span></div>
@@ -426,9 +431,10 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
           </section>
 
           <section className="cal-carry-panel" aria-label="Running calorie balance">
-            <div className="cal-carry-heading"><h2>Running calorie balance</h2><span>{selectedBalance?.settled ? 'Carried forward' : date === currentDay ? 'Today is provisional' : dayEntries.length ? 'Not settled yet' : 'Unlogged day'}</span></div>
-            <div className="cal-carry-values"><span>Base budget<strong>{number(allowance.baseBudget, 1)} <small>kcal</small></strong></span><span>Carry from earlier days<strong>{signedNumber(carryIn)} <small>kcal</small></strong></span><span>{selectedBalance ? 'Balance after logged food' : 'Projected balance'}<strong>{signedNumber(rawBalance)} <small>kcal</small></strong></span></div>
+            <div className="cal-carry-heading"><h2>Running calorie balance</h2><span>{burned.unavailable ? 'Waiting for Garmin' : selectedBalance?.settled ? 'Carried forward' : date === currentDay ? 'Today is provisional' : dayEntries.length ? 'Not settled yet' : 'Unlogged day'}</span></div>
+            <div className="cal-carry-values"><span>Base budget<strong>{burned.unavailable ? '—' : number(allowance.baseBudget, 1)} <small>kcal</small></strong></span><span>Carry from earlier days<strong>{signedNumber(carryIn)} <small>kcal</small></strong></span><span>{selectedBalance ? 'Balance after logged food' : 'Projected balance'}<strong>{burned.unavailable ? '—' : signedNumber(rawBalance)} <small>kcal</small></strong></span></div>
             <p>Only completed days with logged food carry their balance into later days.{date === currentDay ? ' Today’s balance stays provisional until the day ends.' : !dayEntries.length ? ' This day has no logged food, so it does not add to carry.' : date > currentDay ? ' This future day does not add to carry yet.' : ''}</p>
+            {hasPendingLoggedDays && <p className="cal-carry-pending-note">Some logged days are waiting for Garmin data. Their balances are not included yet.</p>}
             {allowance.rawBudget < 0 && <p className="cal-carry-debt-note">The food budget is shown as 0 kcal. The calorie debt stays in the running balance.</p>}
           </section>
 
@@ -455,21 +461,22 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
 
         {view === 'history' && <>
           <section className="cal-page-heading"><div><div className="cal-eyebrow">THE DAYS ADD UP</div><h1>Your history<span className="cal-heading-dot">.</span></h1><p>A simple record, whenever you need it.</p></div><button className="cal-button" onClick={() => setModal({ type: 'transfer' })}><Icon name="download" size={18}/>Export journal</button></section>
+          {hasPendingLoggedDays && <p className="cal-history-pending-note">Some logged days are waiting for Garmin data. Their balances are not included yet.</p>}
           {historyDates.length ? <div className="cal-history">
             <div className="cal-history-header"><span>Day</span><span>Energy</span><span className="cal-history-protein">Protein</span><span className="cal-history-deficit">Deficit / surplus</span><span className="cal-history-balance">Running balance</span><span/></div>
             {historyDates.map(day => {
               const entries = data.entries.filter(entry => entry.date === day);
               const dayTotal = dayTotals(entries);
-              const goals = data.days[day] ?? data.defaults;
+              const goals = settingsForDay(data, day);
               const dayBurned = effectiveBurned(day, goals, garmin.days, currentDay);
               const dayDeficit = dayBurned.burned - dayTotal.calories;
               const balance = ledger.days[day];
               return <button className="cal-history-row" key={day} onClick={() => openDay(day)}>
-                <span><strong>{readableDate(day, { weekday: 'short', day: 'numeric', month: 'short' })}</strong><small>{entries.length} {entries.length === 1 ? 'entry' : 'entries'} · {day.slice(0, 4)}<em className="cal-history-source">{burnedLabel(dayBurned)}{dayBurned.source === 'garmin' && day === currentDay ? ' · provisional' : ''}</em></small></span>
+                <span><strong>{readableDate(day, { weekday: 'short', day: 'numeric', month: 'short' })}</strong><small>{entries.length} {entries.length === 1 ? 'entry' : 'entries'} · {day.slice(0, 4)}<em className="cal-history-source">{burnedLabel(dayBurned)}{dayBurned.source === 'garmin' && !dayBurned.unavailable && day === currentDay ? ' · provisional' : ''}</em>{dayBurned.restingEstimate && dayBurned.restingDay && <em className="cal-history-source">Resting from {readableDate(dayBurned.restingDay.date, { day: 'numeric', month: 'short', year: 'numeric' })} · {burnedSyncTime(dayBurned)}</em>}</small></span>
                 <span><strong>{number(dayTotal.calories, 1)}</strong><small> kcal</small></span>
                 <span className="cal-history-protein"><strong>{number(dayTotal.protein, 1)}</strong><small> g</small></span>
-                <span className="cal-history-deficit"><strong>{entries.length ? number(Math.abs(dayDeficit), 1) : '—'}</strong><small>{entries.length ? ` kcal ${dayDeficit >= 0 ? 'deficit' : 'surplus'}` : ' Unlogged'}</small></span>
-                <span className="cal-history-balance"><strong>{balance ? signedNumber(balance.balance) : '—'}</strong><small>{balance ? `kcal · ${balance.settled ? 'carried forward' : day === currentDay ? 'provisional' : 'not settled'}` : 'No logged food'}</small></span>
+                <span className="cal-history-deficit"><strong>{entries.length && !dayBurned.unavailable ? number(Math.abs(dayDeficit), 1) : '—'}</strong><small>{dayBurned.unavailable ? 'Burned unavailable' : entries.length ? ` kcal ${dayBurned.restingEstimate ? 'estimated ' : ''}${dayDeficit >= 0 ? 'deficit' : 'surplus'}` : ' Unlogged'}</small></span>
+                <span className="cal-history-balance"><strong>{balance?.available ? signedNumber(balance.balance) : '—'}</strong><small>{balance ? !balance.available ? 'Waiting for Garmin' : `kcal · ${balance.settled ? 'carried forward' : day === currentDay ? 'provisional' : 'not settled'}` : 'No logged food'}</small></span>
                 <Icon name="right" size={18}/>
               </button>;
             })}
@@ -481,7 +488,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
 
       {modal && <Modal onClose={() => setModal(null)}>{modal.type === 'entry' ? <EntryEditor key={modal.entry?.id ?? modal.foodId ?? 'new-entry'} entry={modal.entry} initialFoodId={modal.foodId} foods={sortedFoods} date={date} onSave={saveEntry} onAddFood={() => setModal({ type: 'food', returnToLog: true })} onClose={() => setModal(null)}/>
         : modal.type === 'food' ? <FoodEditor key={modal.food?.id ?? 'new-food'} food={modal.food} onSave={saveFood} onClose={() => setModal(null)}/>
-        : modal.type === 'targets' ? <TargetsEditor date={date} currentDay={currentDay} settings={targets} garminDays={garmin.days} carryIn={carryIn} onSave={(settings, makeDefault) => { updateData(current => ({ ...current, days: { ...current.days, [date]: settings }, defaults: makeDefault ? settings : current.defaults })); setModal(null); }} onClose={() => setModal(null)}/>
+        : modal.type === 'targets' ? <TargetsEditor date={date} currentDay={currentDay} settings={targets} garminDays={garmin.days} carryIn={carryIn} onSave={(settings, makeDefault) => { updateData(current => ({ ...current, days: { ...current.days, [date]: settings }, defaults: makeDefault ? { ...current.defaults, deficit: settings.deficit, protein: DAILY_PROTEIN_GRAMS } : current.defaults })); setModal(null); }} onClose={() => setModal(null)}/>
         : modal.type === 'garmin' ? <GarminConnection date={date} currentDay={currentDay} snapshot={garmin} loading={garminLoading || garminDisconnecting} disconnecting={garminDisconnecting} error={garminLoadError} onRefresh={() => void refreshGarmin()} onDisconnect={() => void disconnectGarmin()} onClose={() => setModal(null)}/>
         : <TransferDialog data={data} onImport={(next) => { updateData(() => next); setModal(null); }} onClose={() => setModal(null)}/>}</Modal>}
     </>}
@@ -628,7 +635,7 @@ function FoodEditor({ food, onSave, onClose }: { food?: Food; onSave: (food: Foo
 }
 
 function TargetsEditor({ date, currentDay, settings, garminDays, carryIn, onSave, onClose }: { date: string; currentDay: string; settings: DaySettings; garminDays: readonly GarminDay[]; carryIn: number; onSave: (settings: DaySettings, makeDefault: boolean) => void; onClose: () => void }) {
-  const [burned, setBurned] = useState(String(settings.burned));
+  const [burned, setBurned] = useState(settings.burned === 0 && settings.burnedSource !== 'manual' ? '' : String(settings.burned));
   const [source, setSource] = useState<'manual' | 'garmin'>(settings.burnedSource ?? 'garmin');
   const [deficit, setDeficit] = useState(String(settings.deficit));
   const [makeDefault, setMakeDefault] = useState(false);
@@ -641,9 +648,9 @@ function TargetsEditor({ date, currentDay, settings, garminDays, carryIn, onSave
   const nutritionTargets = macroTargets(previewBudget);
   function submit(event: FormEvent) {
     event.preventDefault();
-    if ([burned, deficit].some(value => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 1e8)) { setError('Enter finite, non-negative values no greater than 100,000,000.'); return; }
+    if ([deficit, ...(source === 'manual' ? [burned] : [])].some(value => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 1e8)) { setError('Enter finite, non-negative values no greater than 100,000,000.'); return; }
     if (source === 'manual' && Number(deficit) > Number(burned)) { setError('For a manual estimate, the deficit target cannot be greater than calories burned.'); return; }
-    onSave({ burned: Number(burned), deficit: Number(deficit), protein: DAILY_PROTEIN_GRAMS, burnedSource: source }, makeDefault);
+    onSave({ burned: previewNumber(burned), deficit: Number(deficit), protein: DAILY_PROTEIN_GRAMS, burnedSource: source }, makeDefault);
   }
   return <>
     <ModalHeader title="Your daily targets" eyebrow={readableDate(date, { day: 'numeric', month: 'long' }).toUpperCase()} onClose={onClose}/>
@@ -651,12 +658,12 @@ function TargetsEditor({ date, currentDay, settings, garminDays, carryIn, onSave
     <p className="cal-target-date-hint" id="cal-deficit-date-hint">Changes apply to {readableDate(date, { day: 'numeric', month: 'long', year: 'numeric' })}. Leave the default-target option unchecked to edit only this date.</p>
     <form className="cal-form" onSubmit={submit}>
       <label>Calories burned source<select value={source} onChange={event => setSource(event.target.value as 'manual' | 'garmin')}><option value="garmin">Garmin Connect (automatic)</option><option value="manual">Manual estimate / override</option></select></label>
-      {source === 'garmin' && resolved.day ? <>
-        <label>{resolved.predicted ? 'Predicted calories burned' : resolved.predictionUnavailable ? 'Garmin calories burned so far' : 'Calories burned from Garmin'}<span className="cal-unit-input"><input type="number" value={resolved.burned} readOnly aria-describedby="cal-garmin-target-detail"/><span>kcal</span></span></label>
-        <p className="cal-field-hint" id="cal-garmin-target-detail">{burnedFormula(resolved)}. {burnedSyncTime(resolved)}.{date === currentDay ? ' Today’s value is provisional and updates with imported readings.' : ''}</p>
+      {source === 'garmin' ? <>
+        <label>{resolved.unavailable ? 'Garmin calories burned unavailable' : resolved.restingEstimate ? 'Garmin resting estimate' : resolved.predicted ? 'Predicted calories burned' : resolved.predictionUnavailable ? 'Garmin calories burned so far' : 'Calories burned from Garmin'}<span className="cal-unit-input"><input type="text" value={resolved.unavailable ? '—' : number(resolved.burned, 1)} readOnly aria-describedby="cal-garmin-target-detail"/><span>kcal</span></span></label>
+        <p className="cal-field-hint" id="cal-garmin-target-detail">{burnedFormula(resolved)}.{burnedSyncTime(resolved) ? ` ${burnedSyncTime(resolved)}.` : ''}{!resolved.unavailable && date === currentDay ? ' Today’s value is provisional and updates with imported readings.' : ''}</p>
       </> : <>
-        <NumericField label={source === 'garmin' ? 'Fallback calories burned estimate' : 'Calories burned'} value={burned} onChange={setBurned} unit="kcal"/>
-        <p className="cal-field-hint">{source === 'garmin' ? 'There is no Garmin import for this day yet. This estimate is used until an imported total is available.' : 'This value overrides Garmin for this day, even when imported readings are available.'}</p>
+        <NumericField label="Manual calories burned" value={burned} onChange={setBurned} unit="kcal"/>
+        <p className="cal-field-hint">This value overrides Garmin for this date, even when imported readings are available.</p>
       </>}
       <NumericField label="Deficit target for this date" value={deficit} onChange={setDeficit} unit="kcal" describedBy="cal-deficit-date-hint"/>
       <label>Daily protein target<span className="cal-unit-input"><input type="number" value={DAILY_PROTEIN_GRAMS} readOnly aria-describedby="cal-macro-rule"/><span>g</span></span></label>
@@ -664,7 +671,7 @@ function TargetsEditor({ date, currentDay, settings, garminDays, carryIn, onSave
       <div className="cal-budget-preview"><span>{resolved.predicted ? 'Predicted food budget with carry' : 'Food budget with carry'}</span><strong>{number(previewBudget, 1)} kcal</strong><div className="cal-target-carry-preview"><span>Base budget<strong>{number(previewAllowance.baseBudget, 1)} kcal</strong></span><span>Carry from earlier days<strong>{signedNumber(carryIn)} kcal</strong></span></div><p>Base budget is calories burned minus the deficit target, with a minimum of 0. Carry-in then adjusts the food budget.</p><div className="cal-target-macro-preview"><span>Protein<strong>{number(nutritionTargets.protein, 1)} g</strong></span><span>Carbs<strong>{number(nutritionTargets.carbs, 1)} g</strong></span><span>Fat<strong>{number(nutritionTargets.fat, 1)} g</strong></span></div></div>
       {previewAllowance.rawBudget < 0 && <p className="cal-macro-budget-note">The food budget is shown as 0 kcal. The calorie debt stays in the running balance.</p>}
       {nutritionTargets.budgetTooLow && <p className="cal-macro-budget-note">Current calorie budget is too low for 175 g protein and 25% fat. Carb target is 0 g.</p>}
-      <label className="cal-checkbox"><input type="checkbox" checked={makeDefault} onChange={event => setMakeDefault(event.target.checked)}/><span>Use these as my default targets<small>Applies to days without their own saved targets.{source === 'garmin' ? ' Each day uses its own Garmin data when available.' : ' The manual calories burned value becomes the default.'}</small></span></label>
+      <label className="cal-checkbox"><input type="checkbox" checked={makeDefault} onChange={event => setMakeDefault(event.target.checked)}/><span>Use this deficit target as my default<small>Applies to days without their own saved targets. Manual calories burned applies only to this date; new days use Garmin.</small></span></label>
       {error && <p className="cal-form-error" role="alert">{error}</p>}
       <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary">Save targets<Icon name="check" size={17}/></button></div>
     </form>
@@ -695,6 +702,16 @@ function GarminConnection({ date, currentDay, snapshot, loading, disconnecting, 
         <span>{reading.predicted ? 'Predicted burned' : date === currentDay ? 'Total so far' : 'Total burned'}<strong>{number(reading.burned)} <small>kcal</small></strong></span>
       </div>
       <p>{(reading.predicted || reading.predictionUnavailable) && <span className="cal-garmin-formula">{burnedFormula(reading)}.</span>}{burnedSyncTime(reading)}{status.state === 'not_connected' ? '. Automatic imports are stopped; this reading is kept.' : date === currentDay ? '. Today’s value updates with new imported readings.' : '.'}{reading.predicted && <span className="cal-garmin-raw-total">Garmin total so far: {number(day.total)} kcal.</span>}</p>
+    </div>}
+    {!day && reading.restingEstimate && reading.restingDay && <div className="cal-garmin-day-card">
+      <div><strong>{readableDate(date, { day: 'numeric', month: 'long' })}</strong><span>Garmin resting estimate</span></div>
+      <div className="cal-garmin-day-values cal-garmin-estimate-values"><span>Reference day<strong>{readableDate(reading.restingDay.date, { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span><span>Estimated burned<strong>{number(reading.burned)} <small>kcal</small></strong></span></div>
+      <p>{burnedFormula(reading)}. {burnedSyncTime(reading)}.{status.state === 'not_connected' ? ' Automatic imports are stopped; the reference reading is kept.' : ''}</p>
+    </div>}
+    {!day && reading.unavailable && <div className="cal-garmin-day-card cal-garmin-unavailable-card">
+      <div><strong>{readableDate(date, { day: 'numeric', month: 'long' })}</strong><span>Burned unavailable</span></div>
+      <div className="cal-garmin-unavailable-value">— <small>kcal</small></div>
+      <p>{burnedFormula(reading)}. The automatic base budget stays at 0 until a reading is available.</p>
     </div>}
     <div className="cal-garmin-help"><a href="/calories/garmin-setup/" target="_blank" rel="noreferrer">{status.state === 'not_connected' ? 'Set up Garmin imports' : status.state === 'needs_login' ? 'Reconnect Garmin' : 'Open Garmin setup guide'} ↗</a><p>Automatic imports run hourly while connected. Refresh checks for the latest data already imported into your journal’s storage.</p></div>
     {status.state !== 'not_connected' && <button className="cal-text-button cal-danger cal-garmin-disconnect" onClick={onDisconnect} disabled={loading}>{disconnecting ? 'Disconnecting…' : 'Disconnect Garmin'}</button>}

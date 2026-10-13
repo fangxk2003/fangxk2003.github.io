@@ -16,7 +16,14 @@ export function energyFromMacros(macros: Pick<Macros, 'protein' | 'carbs' | 'fat
 }
 
 export function emptyData(): TrackerData {
-  return { version: 1, foods: [], entries: [], days: {}, defaults: { burned: 3200, deficit: 500, protein: DAILY_PROTEIN_GRAMS } };
+  return { version: 1, foods: [], entries: [], days: {}, defaults: { burned: 0, deficit: 500, protein: DAILY_PROTEIN_GRAMS } };
+}
+
+/** An untouched day starts with Garmin; recorded days and explicit day overrides stay intact. */
+export function settingsForDay(data: TrackerData, date: string): DaySettings {
+  if (data.days[date]) return data.days[date];
+  if (data.entries.some(entry => entry.date === date)) return data.defaults;
+  return { ...data.defaults, burned: 0, burnedSource: 'garmin' };
 }
 
 export function todayISO(): string {

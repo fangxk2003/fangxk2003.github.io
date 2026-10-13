@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { adjustedBudget, calorieLedger, carryBefore } from '../../src/lib/calories/budget.ts';
 import { emptyData, manualMealEntry } from '../../src/lib/calories/model.ts';
+import { effectiveBurned } from '../../src/lib/calories/garmin.ts';
 
 const today = '2026-10-12';
-const settings = (burned = 3200, deficit = 500, burnedSource) => ({
+const settings = (burned = 3200, deficit = 500, burnedSource = 'manual') => ({
   burned, deficit, protein: 175,
   ...(burnedSource ? { burnedSource } : {}),
 });
@@ -107,7 +108,7 @@ test('each completed day applies its own saved deficit and burn target', () => {
 });
 
 test('Garmin actual totals settle past days and explicit manual burn overrides still win', () => {
-  const data = dataWith([meal('2026-10-09', 2000), meal('2026-10-10', 2000)]);
+  const data = dataWith([meal('2026-10-09', 2000), meal('2026-10-10', 2000)], settings(3200, 500, 'garmin'));
   data.days['2026-10-10'] = settings(2800, 500, 'manual');
   const ledger = calorieLedger(data, [reading('2026-10-09', 400, 1800), reading('2026-10-10', 900, 1900, 4000)], today);
   assert.equal(ledger.days['2026-10-09'].baseBudget, 1700);
@@ -117,7 +118,7 @@ test('Garmin actual totals settle past days and explicit manual burn overrides s
 });
 
 test('today uses Garmin prediction without carrying it, then settles the recorded final total', () => {
-  const journal = dataWith([meal('2026-10-12', 2500), meal('2026-10-13', 2200)]);
+  const journal = dataWith([meal('2026-10-12', 2500), meal('2026-10-13', 2200)], settings(3200, 500, 'garmin'));
   const yesterday = reading('2026-10-12', 781, 2338, 3119);
   const partialToday = reading('2026-10-13', 10, 23, 33);
   const provisional = calorieLedger(journal, [yesterday, partialToday], '2026-10-13');
@@ -173,7 +174,7 @@ test('target edits and delayed Garmin corrections recompute the same cumulative 
   const data = threeDays();
   data.days['2026-10-09'] = settings(3200, 600);
   assert.equal(carryBefore(today, calorieLedger(data, [], today)), 100);
-  data.days['2026-10-09'] = settings();
+  data.days['2026-10-09'] = settings(3200, 500, 'garmin');
   const corrected = calorieLedger(data, [reading('2026-10-09', 800, 2200)], today);
   assert.equal(carryBefore(today, corrected), 0);
   assert.deepEqual(corrected, calorieLedger(data, [reading('2026-10-09', 800, 2200)], today));
@@ -213,4 +214,88 @@ test('invalid base targets and numeric coercion are rejected, including finite-i
   }
   for (const value of ['300', null, true]) assert.throws(() => adjustedBudget(3200, 500, value));
   assert.throws(() => adjustedBudget(Number.MAX_VALUE, 0, Number.MAX_VALUE));
+});
+
+test('missing automatic days carry budgets derived from the global completed resting donor', () => {
+  const data = dataWith([
+    meal('2026-10-09', 1000), meal('2026-10-11', 1600), meal(today, 1000),
+  ], settings(3200, 500, 'garmin'));
+  const imports = [
+    reading('2026-10-06', 600, 1800),
+    reading('2026-10-15', 500, 4000),
+    reading('2026-10-10', 500, 2200),
+    reading(today, 100, 20),
+  ];
+  const ledger = calorieLedger(data, imports, today);
+  assert.equal(ledger.days['2026-10-09'].baseBudget, 1700, 'global donor works even without an exact previous-day record');
+  assert.equal(ledger.days['2026-10-09'].balance, 700);
+  assert.equal(ledger.days['2026-10-11'].baseBudget, 1700);
+  assert.equal(ledger.days['2026-10-11'].balance, 800);
+  assert.equal(carryBefore(today, ledger), 800);
+  assert.equal(ledger.days[today].baseBudget, 0, 'an actual partial today remains actual when exact yesterday is absent');
+  assert.equal(ledger.days[today].balance, -200);
+  assert.equal(ledger.days[today].settled, false);
+  for (const [date, row] of Object.entries(ledger.days)) {
+    const effective = effectiveBurned(date, data.days[date] ?? data.defaults, imports, today);
+    assert.equal(row.baseBudget, adjustedBudget(effective.burned, data.defaults.deficit).baseBudget,
+      `ledger and the full-history UI resolver agree for ${date}`);
+  }
+  assert.equal(ledger.days['2026-10-10'], undefined, 'the donor date has no logged food and earns no credit');
+});
+
+test('unknown automatic burn creates neither credit nor debt before completed Garmin data exists', () => {
+  const data = dataWith([meal('2026-10-09', 1000), meal('2026-10-11', 500)], settings(3200, 500, 'garmin'));
+  const imports = [reading(today, 100, 20), reading('2026-10-15', 400, 2000)];
+  const ledger = calorieLedger(data, imports, today);
+  assert.deepEqual(ledger.completed, []);
+  assert.equal(carryBefore(today, ledger), 0);
+  assert.equal(ledger.days['2026-10-09'].balance, -1000, 'the placeholder row is not a settled balance');
+  assert.equal(ledger.days['2026-10-11'].balance, -500, 'unknown prior intake is not carried into another row');
+  for (const row of Object.values(ledger.days)) {
+    assert.equal(row.baseBudget, 0);
+    assert.equal(row.available, false);
+    assert.equal(row.settled, false);
+  }
+});
+
+test('a zero resting fallback remains valid in the ledger and retains accumulated debt', () => {
+  const data = dataWith([meal('2026-10-09', 1000)], settings(3200, 500, 'garmin'));
+  const imports = [reading('2026-10-08', 700, 2000), reading('2026-10-10', 600, 0)];
+  const ledger = calorieLedger(data, imports, today);
+  assert.equal(ledger.days['2026-10-09'].baseBudget, 0);
+  assert.equal(ledger.days['2026-10-09'].available, true);
+  assert.equal(ledger.days['2026-10-09'].settled, true);
+  assert.equal(ledger.days['2026-10-09'].balance, -1000);
+  assert.equal(carryBefore(today, ledger), -1000);
+});
+
+test('later Garmin imports settle formerly unknown days exactly once on recomputation', () => {
+  const data = dataWith([meal('2026-10-09', 1000), meal('2026-10-11', 500)], settings(3200, 500, 'garmin'));
+  const waiting = calorieLedger(data, [], today);
+  assert.deepEqual(waiting.completed, []);
+  assert.equal(carryBefore(today, waiting), 0);
+  const imports = [reading('2026-10-11', 500, 1900), reading('2026-10-09', 300, 1700)];
+  const loaded = calorieLedger(data, imports, today);
+  assert.deepEqual(loaded.completed.map(row => row.date), ['2026-10-09', '2026-10-11']);
+  assert.deepEqual(loaded.completed.map(row => row.balance), [500, 1900]);
+  assert.ok(loaded.completed.every(row => row.available && row.settled));
+  assert.equal(carryBefore(today, loaded), 1900);
+  const recalculated = calorieLedger(data, imports, today);
+  assert.deepEqual(recalculated, loaded);
+  assert.equal(carryBefore(today, recalculated), 1900, 'the waiting placeholders never become extra adjustment entries');
+});
+
+test('explicit manual zero and an imported Garmin zero are available completed burn amounts', () => {
+  for (const source of ['manual', 'garmin']) {
+    const data = dataWith([meal('2026-10-09', 250)], settings(0, 500, source));
+    const imports = source === 'garmin' ? [reading('2026-10-09', 0, 0)] : [];
+    const ledger = calorieLedger(data, imports, today);
+    const row = ledger.days['2026-10-09'];
+    assert.equal(row.baseBudget, 0);
+    assert.equal(row.available, true);
+    assert.equal(row.settled, true);
+    assert.equal(row.balance, -250);
+    assert.equal(ledger.completed.length, 1);
+    assert.equal(carryBefore(today, ledger), -250);
+  }
 });

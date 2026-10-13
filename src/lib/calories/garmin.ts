@@ -26,6 +26,8 @@ export interface EffectiveBurned {
   predicted: boolean;
   restingDay?: GarminDay;
   predictionUnavailable: boolean;
+  restingEstimate: boolean;
+  unavailable: boolean;
 }
 
 export function emptyGarminSnapshot(): GarminSnapshot {
@@ -75,16 +77,26 @@ export function normalizeGarminSnapshot(raw: unknown): GarminSnapshot {
   return { days, status: normalizeGarminStatus(value.status) };
 }
 
-/** Today uses active so far plus yesterday's resting energy as a full-day prediction.
- * Completed days keep Garmin's recorded total. An explicit manual override wins.
- * Never substitute another date if the exact previous day's reading is absent. */
+/** The most recent full-day resting reading; today's partial and future values are excluded. */
+export function latestCompletedGarminDay(days: readonly GarminDay[], today = todayISO()): GarminDay | undefined {
+  let latest: GarminDay | undefined;
+  for (const day of days) if (day.date < today && (!latest || day.date > latest.date)) latest = day;
+  return latest;
+}
+
+/** Today uses active so far plus exactly yesterday's resting energy when both are imported.
+ * A missing date uses the latest completed resting reading as an estimate.
+ * Recorded totals and explicit manual overrides keep their existing meaning. */
 export function effectiveBurned(date: string, settings: DaySettings, days: readonly GarminDay[], today = todayISO()): EffectiveBurned {
   const requestedSource = settings.burnedSource === 'manual' ? 'manual' : 'garmin';
   const day = days.find(item => item.date === date);
   if (requestedSource === 'garmin' && day) {
     const restingDay = date === today ? days.find(item => item.date === addDays(date, -1)) : undefined;
-    if (restingDay) return { burned: day.active + restingDay.resting, source: 'garmin', requestedSource, day, restingDay, fallback: false, predicted: true, predictionUnavailable: false };
-    return { burned: day.total, source: 'garmin', requestedSource, day, fallback: false, predicted: false, predictionUnavailable: date === today };
+    if (restingDay) return { burned: day.active + restingDay.resting, source: 'garmin', requestedSource, day, restingDay, fallback: false, predicted: true, predictionUnavailable: false, restingEstimate: false, unavailable: false };
+    return { burned: day.total, source: 'garmin', requestedSource, day, fallback: false, predicted: false, predictionUnavailable: date === today, restingEstimate: false, unavailable: false };
   }
-  return { burned: settings.burned, source: 'manual', requestedSource, day, fallback: requestedSource === 'garmin', predicted: false, predictionUnavailable: false };
+  if (requestedSource === 'manual') return { burned: settings.burned, source: 'manual', requestedSource, day, fallback: false, predicted: false, predictionUnavailable: false, restingEstimate: false, unavailable: false };
+  const restingDay = latestCompletedGarminDay(days, today);
+  if (restingDay) return { burned: restingDay.resting, source: 'garmin', requestedSource, restingDay, fallback: true, predicted: false, predictionUnavailable: false, restingEstimate: true, unavailable: false };
+  return { burned: 0, source: 'garmin', requestedSource, fallback: true, predicted: false, predictionUnavailable: false, restingEstimate: false, unavailable: true };
 }
