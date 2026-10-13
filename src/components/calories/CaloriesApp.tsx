@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { addDays, dayTotals, emptyData, energyFromMacros, macrosForFood, normalizeData, todayISO, type DaySettings, type Entry, type Food, type TrackerData } from '../../lib/calories/model';
+import { addDays, dayTotals, emptyData, energyFromMacros, macrosForFood, manualMealEntry, normalizeData, todayISO, type DaySettings, type Entry, type Food, type TrackerData } from '../../lib/calories/model';
 import { createClient } from '../../lib/calories/client';
 import { effectiveBurned, emptyGarminSnapshot, type EffectiveBurned, type GarminDay, type GarminSnapshot, type GarminStatus } from '../../lib/calories/garmin';
 import { DAILY_PROTEIN_GRAMS, macroTargets, nutrientProgress } from '../../lib/calories/nutrition';
@@ -422,12 +422,12 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
           </button>
 
           <section className="cal-journal-section">
-            <div className="cal-section-heading"><div><h2>On the menu</h2><p>{dayEntries.length ? `${dayEntries.length} ${dayEntries.length === 1 ? 'entry' : 'entries'} logged today` : 'Your food, meal by meal.'}</p></div><button className="cal-button cal-button-primary" onClick={() => setModal(data.foods.length ? { type: 'entry' } : { type: 'food', returnToLog: true })}><Icon name="plus" size={18}/>Log food</button></div>
-            {dayEntries.length === 0 ? <div className="cal-empty-journal"><span className="cal-empty-art"><Icon name="leaf" size={38}/><span/><span/></span><h3>A fresh page for {date === currentDay ? 'today' : 'this day'}.</h3><p>{data.foods.length ? 'Choose a food, add a quantity, and your totals take care of themselves.' : 'Start with a food you eat. Save its nutrition once, then log it in a few taps.'}</p><button className="cal-text-button" onClick={() => setModal(data.foods.length ? { type: 'entry' } : { type: 'food', returnToLog: true })}>{data.foods.length ? 'Log your first food' : 'Add your first food'}<Icon name="arrow" size={17}/></button></div>
+            <div className="cal-section-heading"><div><h2>On the menu</h2><p>{dayEntries.length ? `${dayEntries.length} ${dayEntries.length === 1 ? 'entry' : 'entries'} logged today` : 'Your food, meal by meal.'}</p></div><button className="cal-button cal-button-primary" onClick={() => setModal({ type: 'entry' })}><Icon name="plus" size={18}/>Log food</button></div>
+            {dayEntries.length === 0 ? <div className="cal-empty-journal"><span className="cal-empty-art"><Icon name="leaf" size={38}/><span/><span/></span><h3>A fresh page for {date === currentDay ? 'today' : 'this day'}.</h3><p>Choose a saved food or enter a manual estimate for a meal.</p><button className="cal-text-button" onClick={() => setModal({ type: 'entry' })}>Log your first food<Icon name="arrow" size={17}/></button></div>
               : <div className="cal-meals">{meals.map((meal, index) => {
                 const entries = dayEntries.filter(entry => entry.meal === meal);
                 const mealTotals = dayTotals(entries);
-                return <div className="cal-meal" key={meal}><div className="cal-meal-heading"><span className="cal-meal-number">{String(index + 1).padStart(2, '0')}</span><h3>{meal}</h3><span>{number(mealTotals.calories)} kcal</span></div><div className="cal-entry-list">{entries.map(entry => <div className="cal-entry" key={entry.id}><div className="cal-entry-info"><strong>{entry.foodName}</strong><span>{number(entry.quantity, 2)} {unitLabel(entry.unit, entry.quantity)}<i/> {entry.state}</span></div><div className="cal-entry-macros"><span><b>P</b> {number(entry.protein, 1)}<small> g</small></span><span><b>C</b> {number(entry.carbs, 1)}<small> g</small></span><span><b>F</b> {number(entry.fat, 1)}<small> g</small></span><span><b>Fibre</b> {number(entry.fiber, 1)}<small> g</small></span></div><strong className="cal-entry-energy">{number(entry.calories)}<small> kcal</small></strong><div className="cal-entry-actions">{deleteEntryId === entry.id ? <><button className="cal-text-button cal-danger" onClick={() => { updateData(current => ({ ...current, entries: current.entries.filter(item => item.id !== entry.id) })); setDeleteEntryId(null); }}>Remove</button><button className="cal-icon-button" onClick={() => setDeleteEntryId(null)} aria-label="Cancel removal"><Icon name="close" size={16}/></button></> : <><button className="cal-icon-button" onClick={() => setModal({ type: 'entry', entry })} aria-label={`Edit ${entry.foodName}`}><Icon name="edit" size={16}/></button><button className="cal-icon-button" onClick={() => setDeleteEntryId(entry.id)} aria-label={`Remove ${entry.foodName}`}><Icon name="trash" size={16}/></button></>}</div></div>)}</div></div>;
+                return <div className="cal-meal" key={meal}><div className="cal-meal-heading"><span className="cal-meal-number">{String(index + 1).padStart(2, '0')}</span><h3>{meal}</h3><span>{number(mealTotals.calories)} kcal</span></div><div className="cal-entry-list">{entries.map(entry => <div className="cal-entry" key={entry.id}><div className="cal-entry-info"><strong>{entry.foodName}</strong><span>{entry.source === 'manual' ? 'Manual estimate' : <>{number(entry.quantity, 2)} {unitLabel(entry.unit, entry.quantity)}<i/> {entry.state}</>}</span></div><div className="cal-entry-macros"><span><b>P</b> {number(entry.protein, 1)}<small> g</small></span><span><b>C</b> {number(entry.carbs, 1)}<small> g</small></span><span><b>F</b> {number(entry.fat, 1)}<small> g</small></span><span><b>Fibre</b> {number(entry.fiber, 1)}<small> g</small></span></div><strong className="cal-entry-energy">{number(entry.calories)}<small> kcal</small></strong><div className="cal-entry-actions">{deleteEntryId === entry.id ? <><button className="cal-text-button cal-danger" onClick={() => { updateData(current => ({ ...current, entries: current.entries.filter(item => item.id !== entry.id) })); setDeleteEntryId(null); }}>Remove</button><button className="cal-icon-button" onClick={() => setDeleteEntryId(null)} aria-label="Cancel removal"><Icon name="close" size={16}/></button></> : <><button className="cal-icon-button" onClick={() => setModal({ type: 'entry', entry })} aria-label={`Edit ${entry.foodName}`}><Icon name="edit" size={16}/></button><button className="cal-icon-button" onClick={() => setDeleteEntryId(entry.id)} aria-label={`Remove ${entry.foodName}`}><Icon name="trash" size={16}/></button></>}</div></div>)}</div></div>;
               })}</div>}
           </section>
         </>}
@@ -499,35 +499,72 @@ function NumericField({ label, value, onChange, unit = 'g', min = 0, required = 
 }
 
 function EntryEditor({ entry, initialFoodId, foods, date, onSave, onAddFood, onClose }: { entry?: Entry; initialFoodId?: string; foods: Food[]; date: string; onSave: (entry: Entry) => void; onAddFood: () => void; onClose: () => void }) {
-  const initialFood = foods.find(food => food.id === (entry?.foodId ?? initialFoodId)) ?? foods[0];
-  const [foodId, setFoodId] = useState(entry?.foodId ?? initialFood?.id ?? '');
+  const manualEditing = entry?.source === 'manual' || Boolean(entry && entry.foodId === `manual:${entry.id}`);
+  const [mode, setMode] = useState<'library' | 'manual'>(entry ? manualEditing ? 'manual' : 'library' : foods.length ? 'library' : 'manual');
+  const initialFood = foods.find(food => food.id === (manualEditing ? initialFoodId : entry?.foodId ?? initialFoodId)) ?? foods[0];
+  const [foodId, setFoodId] = useState(manualEditing ? '' : entry ? entry.foodId : initialFood?.id ?? '');
   const [foodFilter, setFoodFilter] = useState('');
-  const [quantity, setQuantity] = useState(String(entry?.quantity ?? initialFood?.baseQuantity ?? 100));
+  const [quantity, setQuantity] = useState(String(!manualEditing && entry ? entry.quantity : initialFood?.baseQuantity ?? 100));
+  const [manualName, setManualName] = useState(manualEditing ? entry?.foodName ?? '' : '');
+  const [manualNutrients, setManualNutrients] = useState({ protein: manualEditing ? String(entry?.protein ?? '') : '', carbs: manualEditing ? String(entry?.carbs ?? '') : '', fat: manualEditing ? String(entry?.fat ?? '') : '', fiber: manualEditing ? String(entry?.fiber ?? '') : '' });
   const standardMeals = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
   const [mealChoice, setMealChoice] = useState(entry ? (standardMeals.includes(entry.meal) ? entry.meal : 'Custom') : 'Breakfast');
   const [customMeal, setCustomMeal] = useState(entry?.meal ?? '');
   const [entryDate, setEntryDate] = useState(entry?.date ?? date);
   const [error, setError] = useState('');
-  // Use the saved snapshot for both the option and nutrition when editing its food.
-  const savedFood: Food | undefined = entry ? { id: entry.foodId, name: entry.foodName, baseQuantity: entry.quantity, unit: entry.unit, state: entry.state, carbs: entry.carbs, protein: entry.protein, fat: entry.fat, fiber: entry.fiber, calories: entry.calories } : undefined;
+  // Only a library entry contributes its original nutrient snapshot to the food picker.
+  const savedFood: Food | undefined = entry && !manualEditing ? { id: entry.foodId, name: entry.foodName, baseQuantity: entry.quantity, unit: entry.unit, state: entry.state, carbs: entry.carbs, protein: entry.protein, fat: entry.fat, fiber: entry.fiber, calories: entry.calories } : undefined;
   const choices = savedFood ? [savedFood, ...foods.filter(food => food.id !== savedFood.id)] : foods;
   const matches = (food: Food, query: string) => food.name.toLowerCase().includes(query.trim().toLowerCase());
   const filteredFoods = choices.filter(food => matches(food, foodFilter));
   const selectedFood = filteredFoods.find(food => food.id === foodId);
-  const preview = selectedFood ? macrosForFood(selectedFood, Math.max(0, Number(quantity) || 0)) : null;
+  const preview = selectedFood ? macrosForFood(selectedFood, previewNumber(quantity)) : null;
+  const estimatedValue = (value: string) => { const parsed = Number(value); return Number.isFinite(parsed) && parsed >= 0 && parsed <= 1e8 ? parsed : 0; };
+  const manualPreview = { protein: estimatedValue(manualNutrients.protein), carbs: estimatedValue(manualNutrients.carbs), fat: estimatedValue(manualNutrients.fat), fiber: estimatedValue(manualNutrients.fiber) };
+  const manualEnergy = energyFromMacros(manualPreview);
   function filterFoods(value: string) {
     setFoodFilter(value);
     // An excluded selection must not remain available to submit invisibly.
     if (selectedFood && !matches(selectedFood, value)) setFoodId('');
     setError('');
   }
+  function changeMode(next: 'library' | 'manual') { setMode(next); setError(''); }
+  function changeManualNutrient(key: keyof typeof manualNutrients, value: string) { setManualNutrients(current => ({ ...current, [key]: value })); setError(''); }
   function submit(event: FormEvent) {
     event.preventDefault();
     const meal = mealChoice === 'Custom' ? customMeal.trim() : mealChoice;
-    if (!selectedFood || !preview || !Number.isFinite(Number(quantity)) || Number(quantity) <= 0 || !meal) { setError('Choose a food, a quantity greater than zero, and a meal.'); return; }
+    if (!meal) { setError('Add a meal name or number.'); return; }
+    if (mode === 'manual') {
+      if (!manualName.trim()) { setError('Give your estimated meal a name.'); return; }
+      if (Object.values(manualNutrients).some(value => !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 1e8) || !Number.isFinite(manualEnergy) || manualEnergy > 1e8) { setError('Enter finite, non-negative nutrient totals. Each value and the calculated energy must be no more than 100,000,000.'); return; }
+      try { onSave(manualMealEntry({ id: entry?.id ?? newId(), date: entryDate, meal, name: manualName.trim(), protein: Number(manualNutrients.protein), carbs: Number(manualNutrients.carbs), fat: Number(manualNutrients.fat), fiber: Number(manualNutrients.fiber) })); }
+      catch (error) { setError(errorMessage(error)); }
+      return;
+    }
+    if (!selectedFood || !preview || !Number.isFinite(Number(quantity)) || Number(quantity) <= 0 || Number(quantity) > 1e8) { setError('Choose a food and a quantity greater than zero.'); return; }
+    // A fresh library object removes a manual source flag when the entry changes modes.
     onSave({ id: entry?.id ?? newId(), date: entryDate, meal, foodId: selectedFood.id, foodName: selectedFood.name, quantity: Number(quantity), unit: selectedFood.unit, state: selectedFood.state, ...preview });
   }
-  return <><ModalHeader title={entry ? 'Edit your entry' : 'What’s on the menu?'} eyebrow={entry ? 'DAILY JOURNAL' : 'LOG A FOOD'} onClose={onClose}/><form className="cal-form" onSubmit={submit}><div className="cal-food-picker" role="group" aria-labelledby="cal-entry-food-label"><label id="cal-entry-food-label" htmlFor="cal-entry-food-filter">Food</label><div className="cal-food-picker-controls"><input id="cal-entry-food-filter" type="text" aria-label="Filter foods" aria-describedby="cal-entry-food-matches" value={foodFilter} onChange={event => filterFoods(event.target.value)} placeholder="Type part of a food name" autoComplete="off" autoCapitalize="none" spellCheck={false} autoFocus/><select aria-label="Food" aria-describedby="cal-entry-food-matches" value={foodId} onChange={event => { const food = filteredFoods.find(item => item.id === event.target.value); setFoodId(food?.id ?? ''); if (food) setQuantity(String(food.baseQuantity)); setError(''); }} required disabled={filteredFoods.length === 0}><option value="" disabled>{filteredFoods.length ? 'Choose a food…' : 'No matching foods'}</option>{filteredFoods.map(food => <option key={food.id} value={food.id}>{food.name}{food.id === savedFood?.id ? ' (saved entry)' : ''} · {food.state}</option>)}</select></div><small className="cal-field-hint" id="cal-entry-food-matches" role="status">{filteredFoods.length === 0 ? 'No matching foods. Try another name or add a food below.' : foodFilter.trim() ? `${filteredFoods.length} matching ${filteredFoods.length === 1 ? 'food' : 'foods'}` : 'Type to filter the food list.'}</small></div><button className="cal-text-button cal-add-food-inline" type="button" onClick={onAddFood}><Icon name="plus" size={15}/>Add a new food to your library</button><div className="cal-form-grid"><NumericField label="Quantity" value={quantity} onChange={setQuantity} unit={selectedFood?.unit ?? 'g'} min={0.001}/><label>Meal<select value={mealChoice} onChange={event => setMealChoice(event.target.value)}>{standardMeals.map(meal => <option key={meal}>{meal}</option>)}<option>Custom</option></select></label></div>{mealChoice === 'Custom' && <label>Meal name or number<input type="text" value={customMeal} onChange={event => setCustomMeal(event.target.value)} placeholder="e.g. Meal 1, late lunch" required maxLength={80}/></label>}<label>Date<input type="date" value={entryDate} onChange={event => setEntryDate(event.target.value)} required/></label>{preview && <div className="cal-entry-preview"><div><span>This entry</span><strong>{number(preview.calories)} <small>kcal</small></strong></div><div className="cal-preview-macros">{([['Protein', preview.protein], ['Carbs', preview.carbs], ['Fat', preview.fat], ['Fibre', preview.fiber]] as const).map(([name, amount]) => <span key={name}>{name}<strong>{number(amount, 1)} g</strong></span>)}</div><p>{selectedFood?.state} · {entry && foodId === entry.foodId ? 'Uses nutrition saved with this entry.' : `Calculated from your food’s values per ${number(selectedFood?.baseQuantity ?? 0, 2)} ${selectedFood?.unit}.`}</p></div>}{error && <p className="cal-form-error" role="alert">{error}</p>}<div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary" disabled={!selectedFood}>{entry ? 'Save changes' : 'Add to journal'}<Icon name="check" size={17}/></button></div></form></>;
+  return <>
+    <ModalHeader title={entry ? 'Edit your entry' : 'What’s on the menu?'} eyebrow={entry ? 'DAILY JOURNAL' : 'LOG A FOOD'} onClose={onClose}/>
+    <form className="cal-form" onSubmit={submit}>
+      <div className="cal-entry-mode-switch" role="group" aria-label="Entry method"><button type="button" className={mode === 'library' ? 'is-active' : ''} aria-pressed={mode === 'library'} onClick={() => changeMode('library')}>Food library</button><button type="button" className={mode === 'manual' ? 'is-active' : ''} aria-pressed={mode === 'manual'} onClick={() => changeMode('manual')}>Manual estimate</button></div>
+      {mode === 'library' ? <>
+        <div className="cal-food-picker" role="group" aria-labelledby="cal-entry-food-label"><label id="cal-entry-food-label" htmlFor="cal-entry-food-filter">Food</label><div className="cal-food-picker-controls"><input id="cal-entry-food-filter" type="text" aria-label="Filter foods" aria-describedby="cal-entry-food-matches" value={foodFilter} onChange={event => filterFoods(event.target.value)} placeholder="Type part of a food name" autoComplete="off" autoCapitalize="none" spellCheck={false} autoFocus/><select aria-label="Food" aria-describedby="cal-entry-food-matches" value={foodId} onChange={event => { const food = filteredFoods.find(item => item.id === event.target.value); setFoodId(food?.id ?? ''); if (food) setQuantity(String(food.baseQuantity)); setError(''); }} required disabled={filteredFoods.length === 0}><option value="" disabled>{filteredFoods.length ? 'Choose a food…' : 'No matching foods'}</option>{filteredFoods.map(food => <option key={food.id} value={food.id}>{food.name}{food.id === savedFood?.id ? ' (saved entry)' : ''} · {food.state}</option>)}</select></div><small className="cal-field-hint" id="cal-entry-food-matches" role="status">{filteredFoods.length === 0 ? foods.length === 0 && !savedFood ? 'Your library is empty. Add a food below or choose Manual estimate.' : 'No matching foods. Try another name or add a food below.' : foodFilter.trim() ? `${filteredFoods.length} matching ${filteredFoods.length === 1 ? 'food' : 'foods'}` : 'Type to filter the food list.'}</small></div>
+        <button className="cal-text-button cal-add-food-inline" type="button" onClick={onAddFood}><Icon name="plus" size={15}/>Add a new food to your library</button>
+      </> : <>
+        <label>Meal / restaurant name<input value={manualName} onChange={event => { setManualName(event.target.value); setError(''); }} placeholder="e.g. Restaurant lunch" required maxLength={160} autoFocus/></label>
+        <p className="cal-field-hint">Enter the estimated nutrient totals for the entire meal or portion you ate. Leave blank for zero.</p>
+        <div className="cal-form-grid"><NumericField label="Protein total" value={manualNutrients.protein} onChange={value => changeManualNutrient('protein', value)} required={false}/><NumericField label="Carbohydrate total" value={manualNutrients.carbs} onChange={value => changeManualNutrient('carbs', value)} required={false}/><NumericField label="Fat total" value={manualNutrients.fat} onChange={value => changeManualNutrient('fat', value)} required={false}/><NumericField label="Fibre total" value={manualNutrients.fiber} onChange={value => changeManualNutrient('fiber', value)} required={false}/></div>
+      </>}
+      <div className="cal-form-grid">{mode === 'library' && <NumericField label="Quantity" value={quantity} onChange={setQuantity} unit={selectedFood?.unit ?? 'g'} min={0.001}/>}<label>Meal<select value={mealChoice} onChange={event => setMealChoice(event.target.value)}>{standardMeals.map(meal => <option key={meal}>{meal}</option>)}<option>Custom</option></select></label>{mode === 'manual' && <label>Date<input type="date" value={entryDate} onChange={event => setEntryDate(event.target.value)} required/></label>}</div>
+      {mealChoice === 'Custom' && <label>Meal name or number<input type="text" value={customMeal} onChange={event => setCustomMeal(event.target.value)} placeholder="e.g. Meal 1, late lunch" required maxLength={80}/></label>}
+      {mode === 'library' && <label>Date<input type="date" value={entryDate} onChange={event => setEntryDate(event.target.value)} required/></label>}
+      {mode === 'manual' ? <div className="cal-budget-preview" aria-live="polite"><span>Estimated energy for this meal</span><strong><output aria-label="Estimated meal energy">{number(manualEnergy, 1)}</output> kcal</strong><p>4 × protein + 4 × carbohydrate + 9 × fat. Fibre is tracked separately.</p></div> : preview && <div className="cal-entry-preview"><div><span>This entry</span><strong>{number(preview.calories)} <small>kcal</small></strong></div><div className="cal-preview-macros">{([['Protein', preview.protein], ['Carbs', preview.carbs], ['Fat', preview.fat], ['Fibre', preview.fiber]] as const).map(([name, amount]) => <span key={name}>{name}<strong>{number(amount, 1)} g</strong></span>)}</div><p>{selectedFood?.state} · {entry && !manualEditing && foodId === entry.foodId ? 'Uses nutrition saved with this entry.' : `Calculated from your food’s values per ${number(selectedFood?.baseQuantity ?? 0, 2)} ${selectedFood?.unit}.`}</p></div>}
+      {error && <p className="cal-form-error" role="alert">{error}</p>}
+      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary" disabled={mode === 'library' && !selectedFood}>{entry ? 'Save changes' : 'Add to journal'}<Icon name="check" size={17}/></button></div>
+    </form>
+  </>;
 }
 
 function FoodEditor({ food, onSave, onClose }: { food?: Food; onSave: (food: Food) => void; onClose: () => void }) {
@@ -632,11 +669,11 @@ function TransferDialog({ data, onImport, onClose }: { data: TrackerData; onImpo
   const [busy, setBusy] = useState(false);
   const exportDate = todayISO();
   function exportCSV() {
-    const columns: (keyof Entry)[] = ['date', 'meal', 'foodName', 'quantity', 'unit', 'state', 'carbs', 'protein', 'fat', 'fiber', 'calories'];
-    const titles = ['Date', 'Meal', 'Food', 'Quantity', 'Unit', 'State', 'Carbs (g)', 'Protein (g)', 'Fat (g)', 'Fibre (g)', 'Calories (kcal)'];
+    const columns: (keyof Entry)[] = ['date', 'meal', 'foodName', 'source', 'quantity', 'unit', 'state', 'carbs', 'protein', 'fat', 'fiber', 'calories'];
+    const titles = ['Date', 'Meal', 'Food / meal name', 'Entry type', 'Quantity', 'Unit', 'State', 'Carbs (g)', 'Protein (g)', 'Fat (g)', 'Fibre (g)', 'Calories (kcal)'];
     // Prefix formula-like text to keep exported food names safe to open in a spreadsheet.
     const cell = (value: unknown) => { let text = String(value); if (/^[=+@-]/.test(text)) text = `'${text}`; return `"${text.replaceAll('"', '""')}"`; };
-    const csv = [titles.map(cell).join(','), ...[...data.entries].sort((a, b) => a.date.localeCompare(b.date)).map(entry => columns.map(column => cell(entry[column])).join(','))].join('\r\n');
+    const csv = [titles.map(cell).join(','), ...[...data.entries].sort((a, b) => a.date.localeCompare(b.date)).map(entry => columns.map(column => cell(column === 'source' ? entry.source === 'manual' ? 'Manual estimate' : 'Food library' : entry.source === 'manual' && (column === 'quantity' || column === 'unit' || column === 'state') ? '' : entry[column])).join(','))].join('\r\n');
     downloadFile('\uFEFF' + csv, `calories-entries-${exportDate}.csv`, 'text/csv;charset=utf-8');
   }
   async function selectFile(file: File | undefined) {

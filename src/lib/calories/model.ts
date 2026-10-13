@@ -4,7 +4,8 @@ export type Unit = 'g' | 'ml' | 'piece';
 export type FoodState = 'Raw' | 'Cooked' | 'As served';
 export interface Macros { carbs: number; protein: number; fat: number; fiber: number; calories: number }
 export interface Food extends Macros { id: string; name: string; baseQuantity: number; unit: Unit; state: FoodState }
-export interface Entry extends Macros { id: string; date: string; meal: string; foodId: string; foodName: string; quantity: number; unit: Unit; state: FoodState }
+export interface Entry extends Macros { id: string; date: string; meal: string; foodId: string; foodName: string; quantity: number; unit: Unit; state: FoodState; source?: 'manual' }
+export interface ManualMealInput { id: string; date: string; meal: string; name: string; carbs: number; protein: number; fat: number; fiber: number }
 export interface DaySettings { burned: number; deficit: number; protein: number; burnedSource?: 'manual' | 'garmin' }
 export interface TrackerData { version: 1; foods: Food[]; entries: Entry[]; days: Record<string, DaySettings>; defaults: DaySettings }
 
@@ -73,6 +74,21 @@ function settings(raw: unknown): DaySettings {
   return { burned: number(v.burned, 'calories burned'), deficit: number(v.deficit, 'deficit target'), protein: DAILY_PROTEIN_GRAMS, ...(v.burnedSource !== undefined ? { burnedSource: v.burnedSource } : {}) };
 }
 
+/** Nutrition is the total for the eaten meal; no food-library record or portion scaling. */
+export function manualMealEntry(input: ManualMealInput): Entry {
+  const id = text(input.id, 'entry ID');
+  const nutrients = {
+    protein: number(input.protein, 'protein'), carbs: number(input.carbs, 'carbs'),
+    fat: number(input.fat, 'fat'), fiber: number(input.fiber, 'fiber'),
+  };
+  return {
+    id, date: date(input.date), meal: text(input.meal, 'meal').trim(),
+    foodId: text(`manual:${id}`, 'food ID'), foodName: text(input.name, 'meal description').trim(),
+    quantity: 1, unit: 'piece', state: 'As served', source: 'manual',
+    ...nutrients, calories: number(energyFromMacros(nutrients), 'calculated calories'),
+  };
+}
+
 /** Strict validation for imported and remotely loaded data. No silent data loss. */
 export function normalizeData(raw: unknown): TrackerData {
   const v = record(raw);
@@ -84,7 +100,12 @@ export function normalizeData(raw: unknown): TrackerData {
   });
   const entries: Entry[] = v.entries.map(rawEntry => {
     const e = record(rawEntry);
-    return { id: text(e.id, 'entry ID'), date: date(e.date), meal: text(e.meal, 'meal'), foodId: text(e.foodId, 'food ID'), foodName: text(e.foodName, 'food name'), quantity: number(e.quantity, 'quantity', true), unit: unit(e.unit), state: state(e.state), ...macros(e) };
+    if (e.source !== undefined && e.source !== 'manual') throw new Error('Invalid entry source.');
+    const id = text(e.id, 'entry ID');
+    const foodId = text(e.foodId, 'food ID');
+    // Older open tabs omit new metadata on save; the canonical identity preserves manual editing.
+    const manual = e.source === 'manual' || foodId === `manual:${id}`;
+    return { id, date: date(e.date), meal: text(e.meal, 'meal'), foodId, foodName: text(e.foodName, 'food name'), quantity: number(e.quantity, 'quantity', true), unit: unit(e.unit), state: state(e.state), ...macros(e), ...(manual ? { source: 'manual' as const } : {}) };
   });
   if (new Set(foods.map(f => f.id)).size !== foods.length || new Set(entries.map(e => e.id)).size !== entries.length) throw new Error('The backup contains duplicate IDs.');
   const days: Record<string, DaySettings> = {};
