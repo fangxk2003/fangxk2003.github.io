@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { addDays, dayTotals, emptyData, energyFromMacros, macrosForFood, normalizeData, todayISO, type DaySettings, type Entry, type Food, type TrackerData } from '../../lib/calories/model';
 import { createClient } from '../../lib/calories/client';
 import { effectiveBurned, emptyGarminSnapshot, type EffectiveBurned, type GarminDay, type GarminSnapshot, type GarminStatus } from '../../lib/calories/garmin';
+import { DAILY_PROTEIN_GRAMS, macroTargets, nutrientProgress } from '../../lib/calories/nutrition';
 import './calories.css';
 
 type View = 'journal' | 'foods' | 'history';
@@ -39,6 +40,7 @@ const readableDate = (date: string, options: Intl.DateTimeFormatOptions) => new 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : 'Something went wrong. Please try again.';
 const newId = () => crypto.randomUUID();
 const unitLabel = (unit: string, quantity: number) => unit === 'piece' ? (quantity === 1 ? 'piece' : 'pieces') : unit;
+const previewNumber = (value: string) => Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : 0;
 const syncTime = (timestamp: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(timestamp));
 const burnedLabel = (value: EffectiveBurned) => value.source === 'garmin' ? value.predicted ? 'Garmin prediction' : value.predictionUnavailable ? 'Garmin partial total' : 'Garmin' : value.requestedSource === 'manual' ? 'Manual override' : 'Manual estimate';
 function burnedFormula(value: EffectiveBurned) {
@@ -345,7 +347,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
   const remaining = budget - totals.calories;
   const deficit = burned.burned - totals.calories;
   const caloriePercent = budget > 0 ? Math.min(100, totals.calories / budget * 100) : 0;
-  const proteinPercent = targets.protein > 0 ? Math.min(100, totals.protein / targets.protein * 100) : 0;
+  const nutritionTargets = macroTargets(budget);
   const meals = [...new Set(dayEntries.map(entry => entry.meal))];
   const sortedFoods = [...data.foods].sort((a, b) => a.name.localeCompare(b.name));
   const visibleFoods = sortedFoods.filter(food => food.name.toLowerCase().includes(foodSearch.toLowerCase()));
@@ -404,9 +406,14 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
               <div className="cal-burned-source"><span className="cal-source-badge">{burnedLabel(burned)}</span>{burned.source === 'garmin' && burned.day ? <div className="cal-burned-details"><span>{burnedFormula(burned)}</span><small>{burnedSyncTime(burned)}{date === currentDay ? ' · Today is provisional' : ''}{garmin.status.state === 'not_connected' ? ' · Automatic imports stopped' : date === currentDay && staleImport(burned.day.synced_at) ? ' · Needs a new import' : ''}</small></div> : <span>{burned.fallback ? 'No Garmin import for this day. Using your estimate.' : 'Your saved calories burned value.'}</span>}</div>
             </div>
             <div className="cal-nutrients-card">
-              <div className="cal-card-top"><span className="cal-eyebrow">THE REST OF THE PICTURE</span><span className="cal-pill">grams</span></div>
-              <div className="cal-protein"><div><span>Protein</span><strong>{number(totals.protein, 1)}<small> / {number(targets.protein)} g</small></strong></div><div className="cal-progress-track"><span style={{ width: `${proteinPercent}%` }}/></div><p>{targets.protein > 0 && totals.protein >= targets.protein ? 'Daily protein target reached' : `${number(Math.max(0, targets.protein - totals.protein), 1)} g to your protein target`}</p></div>
-              <div className="cal-macro-grid">{([['Carbs', totals.carbs, 'carbs'], ['Fat', totals.fat, 'fat'], ['Fibre', totals.fiber, 'fiber']] as const).map(([name, amount, className]) => <div key={name}><span><i className={`cal-macro-dot ${className}`}/>{name}</span><strong>{number(amount, 1)}<small> g</small></strong></div>)}</div>
+              <div className="cal-card-top"><span className="cal-eyebrow">DAILY MACRO TARGETS</span><span className="cal-pill">grams</span></div>
+              <div className="cal-macro-progress-list">
+                <MacroProgressRow name="Protein" consumed={totals.protein} target={nutritionTargets.protein} tone="protein"/>
+                <MacroProgressRow name="Carbs" consumed={totals.carbs} target={nutritionTargets.carbs} tone="carbs"/>
+                <MacroProgressRow name="Fat" consumed={totals.fat} target={nutritionTargets.fat} tone="fat"/>
+              </div>
+              <div className="cal-fibre-total"><span><i className="cal-macro-dot fiber"/>Fibre <small>total</small></span><strong>{number(totals.fiber, 1)} <small>g</small></strong></div>
+              {nutritionTargets.budgetTooLow && <p className="cal-macro-budget-note">Current calorie budget is too low for 175 g protein and 25% fat. Carb target is 0 g.</p>}
             </div>
           </section>
 
@@ -444,6 +451,18 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
         : modal.type === 'garmin' ? <GarminConnection date={date} currentDay={currentDay} snapshot={garmin} loading={garminLoading || garminDisconnecting} disconnecting={garminDisconnecting} error={garminLoadError} onRefresh={() => void refreshGarmin()} onDisconnect={() => void disconnectGarmin()} onClose={() => setModal(null)}/>
         : <TransferDialog data={data} onImport={(next) => { updateData(() => next); setModal(null); }} onClose={() => setModal(null)}/>}</Modal>}
     </>}
+  </div>;
+}
+
+function MacroProgressRow({ name, consumed, target, tone }: { name: string; consumed: number; target: number; tone: 'protein' | 'carbs' | 'fat' }) {
+  const progress = nutrientProgress(consumed, target);
+  const percent = progress.percent === null ? '—' : `${number(progress.percent, 1)}%`;
+  const remaining = target - consumed;
+  const detail = target === 0 ? consumed > 0 ? `${number(consumed, 1)} g over zero allocation` : 'No energy allocated in this budget' : remaining > 0 ? `${number(remaining, 1)} g remaining` : remaining < 0 ? `${number(-remaining, 1)} g over target` : 'Target reached';
+  return <div className={`cal-macro-progress-row cal-macro-tone-${tone}`}>
+    <div className="cal-macro-progress-heading"><span className="cal-macro-name">{name}</span><span className="cal-macro-consumed"><strong>{number(consumed, 1)}</strong><small> / {number(target, 1)} g</small></span><span className="cal-macro-percentage" aria-label={progress.percent === null ? `${name} percentage unavailable` : `${number(progress.percent, 1)} percent of ${name.toLowerCase()} target consumed`}>{percent}</span></div>
+    <div className="cal-progress-track" role="progressbar" aria-label={`${name} target progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.barPercent} aria-valuetext={`${number(consumed, 1)} of ${number(target, 1)} grams; ${progress.percent === null ? 'percentage unavailable' : `${number(progress.percent, 1)} percent of target consumed`}`}><span style={{ width: `${progress.barPercent}%` }}/></div>
+    <p className={remaining < 0 ? 'cal-macro-over' : ''}>{detail}</p>
   </div>;
 }
 
@@ -533,19 +552,21 @@ function TargetsEditor({ date, currentDay, settings, garminDays, onSave, onClose
   const [burned, setBurned] = useState(String(settings.burned));
   const [source, setSource] = useState<'manual' | 'garmin'>(settings.burnedSource ?? 'garmin');
   const [deficit, setDeficit] = useState(String(settings.deficit));
-  const [protein, setProtein] = useState(String(settings.protein));
   const [makeDefault, setMakeDefault] = useState(false);
   const [error, setError] = useState('');
-  const resolved = effectiveBurned(date, { ...settings, burned: Number(burned) || 0, burnedSource: source }, garminDays, currentDay);
+  const resolved = effectiveBurned(date, { ...settings, burned: previewNumber(burned), burnedSource: source }, garminDays, currentDay);
   const effective = resolved.burned;
+  const previewDeficit = previewNumber(deficit);
+  const previewBudget = Math.max(0, effective - previewDeficit);
+  const nutritionTargets = macroTargets(previewBudget);
   function submit(event: FormEvent) {
     event.preventDefault();
-    if ([burned, deficit, protein].some(value => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 1e8) || (source === 'manual' && Number(deficit) > Number(burned))) { setError('Enter non-negative values. For a manual override, the deficit target cannot be greater than calories burned.'); return; }
-    onSave({ burned: Number(burned), deficit: Number(deficit), protein: Number(protein), burnedSource: source }, makeDefault);
+    if ([burned, deficit].some(value => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 1e8) || (source === 'manual' && Number(deficit) > Number(burned))) { setError('Enter non-negative values. For a manual override, the deficit target cannot be greater than calories burned.'); return; }
+    onSave({ burned: Number(burned), deficit: Number(deficit), protein: DAILY_PROTEIN_GRAMS, burnedSource: source }, makeDefault);
   }
   return <>
     <ModalHeader title="Your daily targets" eyebrow={readableDate(date, { day: 'numeric', month: 'long' }).toUpperCase()} onClose={onClose}/>
-    <p className="cal-modal-intro">Set your own targets and choose where calories burned comes from.</p>
+    <p className="cal-modal-intro">Choose your deficit target and where calories burned comes from.</p>
     <form className="cal-form" onSubmit={submit}>
       <label>Calories burned source<select value={source} onChange={event => setSource(event.target.value as 'manual' | 'garmin')}><option value="garmin">Garmin Connect (automatic)</option><option value="manual">Manual estimate / override</option></select></label>
       {source === 'garmin' && resolved.day ? <>
@@ -556,8 +577,10 @@ function TargetsEditor({ date, currentDay, settings, garminDays, onSave, onClose
         <p className="cal-field-hint">{source === 'garmin' ? 'There is no Garmin import for this day yet. This estimate is used until an imported total is available.' : 'This value overrides Garmin for this day, even when imported readings are available.'}</p>
       </>}
       <NumericField label="Deficit target" value={deficit} onChange={setDeficit} unit="kcal"/>
-      <NumericField label="Protein target" value={protein} onChange={setProtein}/>
-      <div className="cal-budget-preview"><span>{resolved.predicted ? 'Predicted daily energy budget' : 'Daily energy budget'}</span><strong>{number(Math.max(0, effective - (Number(deficit) || 0)))} kcal</strong><p>{resolved.predicted ? 'Today’s active + yesterday’s resting' : resolved.source === 'garmin' ? resolved.predictionUnavailable ? 'Garmin partial total' : 'Garmin total' : 'Saved estimate'} − deficit target{effective < (Number(deficit) || 0) ? ' · Budget is currently zero' : ''}</p></div>
+      <label>Daily protein target<span className="cal-unit-input"><input type="number" value={DAILY_PROTEIN_GRAMS} readOnly aria-describedby="cal-macro-rule"/><span>g</span></span></label>
+      <p className="cal-field-hint" id="cal-macro-rule">Protein: 175 g/day. Fat: 25% of daily budget. Carbs: remaining energy after protein and fat.</p>
+      <div className="cal-budget-preview"><span>{resolved.predicted ? 'Predicted daily energy budget' : 'Daily energy budget'}</span><strong>{number(previewBudget)} kcal</strong><p>{resolved.predicted ? 'Today’s active + yesterday’s resting' : resolved.source === 'garmin' ? resolved.predictionUnavailable ? 'Garmin partial total' : 'Garmin total' : 'Saved estimate'} − deficit target{effective < previewDeficit ? ' · Budget is currently zero' : ''}</p><div className="cal-target-macro-preview"><span>Protein<strong>{number(nutritionTargets.protein, 1)} g</strong></span><span>Carbs<strong>{number(nutritionTargets.carbs, 1)} g</strong></span><span>Fat<strong>{number(nutritionTargets.fat, 1)} g</strong></span></div></div>
+      {nutritionTargets.budgetTooLow && <p className="cal-macro-budget-note">Current calorie budget is too low for 175 g protein and 25% fat. Carb target is 0 g.</p>}
       <label className="cal-checkbox"><input type="checkbox" checked={makeDefault} onChange={event => setMakeDefault(event.target.checked)}/><span>Use these as my default targets<small>Applies to days without their own saved targets.{source === 'garmin' ? ' Each day uses its own Garmin data when available.' : ' The manual calories burned value becomes the default.'}</small></span></label>
       {error && <p className="cal-form-error" role="alert">{error}</p>}
       <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary">Save targets<Icon name="check" size={17}/></button></div>

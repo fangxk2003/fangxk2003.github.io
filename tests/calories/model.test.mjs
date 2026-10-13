@@ -46,7 +46,7 @@ test('day totals sum nutrient snapshots without changing meal records', () => {
   assert.equal(first.quantity, 150);
 });
 
-test('normalization preserves historical nutrient snapshots and day-specific targets', () => {
+test('normalization preserves recorded nutrients and energy targets while fixing protein at 175 g', () => {
   const data = backup();
   data.foods[0].calories = 99;
   data.days['2026-10-12'] = { burned: 2900, deficit: 450, protein: 160 };
@@ -56,7 +56,8 @@ test('normalization preserves historical nutrient snapshots and day-specific tar
   assert.equal(macrosForFood(result.foods[0], 150).calories, 121.5);
   const saved = result.entries[0];
   assert.equal(macrosForFood({ ...saved, id: saved.foodId, name: saved.foodName, baseQuantity: saved.quantity }, 75).calories, 63.75);
-  assert.deepEqual(result.days['2026-10-12'], { burned: 2900, deficit: 450, protein: 160 });
+  assert.deepEqual(result.days['2026-10-12'], { burned: 2900, deficit: 450, protein: 175 });
+  assert.equal(data.days['2026-10-12'].protein, 160, 'the supplied backup is not mutated');
   assert.notEqual(result.entries[0], data.entries[0]);
 });
 

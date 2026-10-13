@@ -444,6 +444,29 @@
 .cal-sync-error { color: #a95746; }
 .cal-entry-info > span { flex-wrap: wrap; gap: 4px; }
 .cal-food-footer .cal-text-button { gap: 3px; }
+.cal-macro-progress-list { display: flex; flex-direction: column; gap: 21px; margin-top: 26px; }
+.cal-macro-progress-heading { display: grid; grid-template-columns: minmax(60px, 1fr) auto 52px; align-items: baseline; gap: 12px; }
+.cal-macro-name { font-size: 13px; color: #52634a; font-weight: 550; }
+.cal-macro-consumed { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cal-macro-consumed strong { font-size: 20px; letter-spacing: -.5px; font-weight: 500; color: var(--cal-ink); }
+.cal-macro-consumed small { color: #697564; font-size: 11px; letter-spacing: 0; }
+.cal-macro-percentage { text-align: right; font-size: 12px; font-weight: 550; color: #52634a; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cal-macro-progress-row .cal-progress-track { margin-top: 9px; }
+.cal-macro-progress-row p { font-size: 12px; color: #697564; line-height: 1.5; margin-top: 6px; }
+.cal-macro-progress-row p.cal-macro-over { color: #896a54; }
+.cal-macro-tone-protein .cal-progress-track > span { background: #62815a; }
+.cal-macro-tone-carbs .cal-progress-track > span { background: #c1a06c; }
+.cal-macro-tone-fat .cal-progress-track > span { background: #97a87a; }
+.cal-fibre-total { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-top: 21px; padding-top: 15px; border-top: 1px solid #e7ebde; }
+.cal-fibre-total > span { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #697564; }
+.cal-fibre-total > span > small { margin-left: 1px; font-size: 11px; }
+.cal-fibre-total > strong { font-size: 17px; font-weight: 500; color: #52634a; font-variant-numeric: tabular-nums; }
+.cal-fibre-total > strong > small { font-size: 11px; font-weight: 400; }
+.cal-macro-budget-note { margin-top: 17px !important; padding: 10px 12px; background: #fbf3e8; border: 1px solid #e7d9c0; border-radius: 8px; color: #856448; font-size: 12px; line-height: 1.7; }
+.cal-form > .cal-macro-budget-note { margin-top: -2px !important; }
+.cal-target-macro-preview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 17px; padding-top: 14px; border-top: 1px solid #dce5ce; }
+.cal-target-macro-preview > span { font-size: 11px; color: #697564; }
+.cal-target-macro-preview strong { font-size: 15px; margin-top: 5px; color: #52634a; }
 .cal-burned-source { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 9px; margin-top: 13px; padding-top: 12px; border-top: 1px solid #dce2d0; font-size: 12px; color: #697564; line-height: 1.65; }
 .cal-burned-details { display: flex; flex-direction: column; gap: 5px; }
 .cal-burned-details > small { font-size: 11px; line-height: 1.7; color: #697564; }
@@ -489,6 +512,12 @@
 .cal-history-source { display: block; font-size: 11px; font-style: normal; color: #697564; margin-top: 4px; }
 .cal-form input[readonly] { background: #eef3e5; border-color: #dce5cf; color: #4f6b41; }
 @media (max-width: 760px) {
+  .cal-macro-progress-list { gap: 18px; margin-top: 22px; }
+  .cal-macro-progress-heading { grid-template-columns: minmax(57px, 1fr) auto 48px; gap: 9px; }
+  .cal-macro-consumed strong { font-size: 19px; }
+  .cal-macro-progress-row .cal-progress-track { margin-top: 8px; }
+  .cal-macro-progress-row p { margin-top: 5px; }
+  .cal-fibre-total { margin-top: 18px; padding-top: 14px; }
   .cal-garmin-bar { padding: 13px 15px; }
   .cal-garmin-bar-text { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
   .cal-garmin-bar-text > span { font-size: 12px; }

@@ -1,3 +1,5 @@
+import { DAILY_PROTEIN_GRAMS } from './nutrition.ts';
+
 export type Unit = 'g' | 'ml' | 'piece';
 export type FoodState = 'Raw' | 'Cooked' | 'As served';
 export interface Macros { carbs: number; protein: number; fat: number; fiber: number; calories: number }
@@ -13,7 +15,7 @@ export function energyFromMacros(macros: Pick<Macros, 'protein' | 'carbs' | 'fat
 }
 
 export function emptyData(): TrackerData {
-  return { version: 1, foods: [], entries: [], days: {}, defaults: { burned: 3200, deficit: 500, protein: 175 } };
+  return { version: 1, foods: [], entries: [], days: {}, defaults: { burned: 3200, deficit: 500, protein: DAILY_PROTEIN_GRAMS } };
 }
 
 export function todayISO(): string {
@@ -67,7 +69,8 @@ function macros(value: Record<string, unknown>): Macros {
 function settings(raw: unknown): DaySettings {
   const v = record(raw);
   if (v.burnedSource !== undefined && v.burnedSource !== 'manual' && v.burnedSource !== 'garmin') throw new Error('Invalid calories burned source.');
-  return { burned: number(v.burned, 'calories burned'), deficit: number(v.deficit, 'deficit target'), protein: number(v.protein, 'protein target'), ...(v.burnedSource !== undefined ? { burnedSource: v.burnedSource } : {}) };
+  number(v.protein, 'protein target'); // Validate legacy backups before applying the fixed target.
+  return { burned: number(v.burned, 'calories burned'), deficit: number(v.deficit, 'deficit target'), protein: DAILY_PROTEIN_GRAMS, ...(v.burnedSource !== undefined ? { burnedSource: v.burnedSource } : {}) };
 }
 
 /** Strict validation for imported and remotely loaded data. No silent data loss. */
