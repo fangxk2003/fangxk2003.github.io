@@ -420,13 +420,13 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
               <div className="cal-burned-source"><span className="cal-source-badge">{burnedLabel(burned)}</span>{burned.source === 'garmin' ? <div className="cal-burned-details"><span>{burnedFormula(burned)}</span>{burnedSyncDay && <small>{burnedSyncTime(burned)}{date === currentDay ? ' · Today is provisional' : ''}{garmin.status.state === 'not_connected' ? ' · Automatic imports stopped' : date === currentDay && staleImport(burnedSyncDay.synced_at) ? ' · Needs a new import' : ''}</small>}</div> : <span>Your saved manual calories burned value.</span>}</div>
             </div>
             <div className="cal-nutrients-card">
-              <div className="cal-card-top"><span className="cal-eyebrow">DAILY MACRO TARGETS</span><span className="cal-pill">grams</span></div>
+              <div className="cal-card-top"><span className="cal-eyebrow">DAILY NUTRIENT TARGETS</span><span className="cal-pill">grams</span></div>
               <div className="cal-macro-progress-list">
                 <MacroProgressRow name="Protein" consumed={totals.protein} target={nutritionTargets.protein} tone="protein"/>
                 <MacroProgressRow name="Carbs" consumed={totals.carbs} target={nutritionTargets.carbs} tone="carbs"/>
                 <MacroProgressRow name="Fat" consumed={totals.fat} target={nutritionTargets.fat} tone="fat"/>
+                <MacroProgressRow name="Fibre" consumed={totals.fiber} target={nutritionTargets.fiber} tone="fiber"/>
               </div>
-              <div className="cal-fibre-total"><span><i className="cal-macro-dot fiber"/>Fibre <small>total</small></span><strong>{number(totals.fiber, 1)} <small>g</small></strong></div>
               {nutritionTargets.budgetTooLow && <p className="cal-macro-budget-note">Current calorie budget is too low for 175 g protein and 25% fat. Carb target is 0 g.</p>}
             </div>
           </section>
@@ -496,11 +496,11 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
   </div>;
 }
 
-function MacroProgressRow({ name, consumed, target, tone }: { name: string; consumed: number; target: number; tone: 'protein' | 'carbs' | 'fat' }) {
+function MacroProgressRow({ name, consumed, target, tone }: { name: string; consumed: number; target: number; tone: 'protein' | 'carbs' | 'fat' | 'fiber' }) {
   const progress = nutrientProgress(consumed, target);
   const percent = progress.percent === null ? '—' : `${number(progress.percent, 1)}%`;
   const remaining = target - consumed;
-  const detail = target === 0 ? consumed > 0 ? `${number(consumed, 1)} g over zero allocation` : 'No energy allocated in this budget' : remaining > 0 ? `${number(remaining, 1)} g remaining` : remaining < 0 ? `${number(-remaining, 1)} g over target` : 'Target reached';
+  const detail = target === 0 ? consumed > 0 ? `${number(consumed, 1)} g over a zero target` : 'Target is 0 g for this budget' : remaining > 0 ? `${number(remaining, 1)} g remaining` : remaining < 0 ? `${number(-remaining, 1)} g over target` : 'Target reached';
   return <div className={`cal-macro-progress-row cal-macro-tone-${tone}`}>
     <div className="cal-macro-progress-heading"><span className="cal-macro-name">{name}</span><span className="cal-macro-consumed"><strong>{number(consumed, 1)}</strong><small> / {number(target, 1)} g</small></span><span className="cal-macro-percentage" aria-label={progress.percent === null ? `${name} percentage unavailable` : `${number(progress.percent, 1)} percent of ${name.toLowerCase()} target consumed`}>{percent}</span></div>
     <div className="cal-progress-track" role="progressbar" aria-label={`${name} target progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.barPercent} aria-valuetext={`${number(consumed, 1)} of ${number(target, 1)} grams; ${progress.percent === null ? 'percentage unavailable' : `${number(progress.percent, 1)} percent of target consumed`}`}><span style={{ width: `${progress.barPercent}%` }}/></div>
@@ -668,8 +668,8 @@ function TargetsEditor({ date, currentDay, settings, garminDays, carryIn, onSave
       </>}
       <NumericField label="Deficit target for this date" value={deficit} onChange={setDeficit} unit="kcal" describedBy="cal-deficit-date-hint"/>
       <label>Daily protein target<span className="cal-unit-input"><input type="number" value={DAILY_PROTEIN_GRAMS} readOnly aria-describedby="cal-macro-rule"/><span>g</span></span></label>
-      <p className="cal-field-hint" id="cal-macro-rule">Protein: 175 g/day. Fat: 25% of daily budget. Carbs: remaining energy after protein and fat.</p>
-      <div className="cal-budget-preview"><span>{resolved.predicted ? 'Predicted food budget with carry' : 'Food budget with carry'}</span><strong>{number(previewBudget, 1)} kcal</strong><div className="cal-target-carry-preview"><span>Base budget<strong>{number(previewAllowance.baseBudget, 1)} kcal</strong></span><span>Carry from earlier days<strong>{signedNumber(carryIn)} kcal</strong></span></div><p>Base budget is calories burned minus the deficit target, with a minimum of 0. Carry-in then adjusts the food budget.</p><div className="cal-target-macro-preview"><span>Protein<strong>{number(nutritionTargets.protein, 1)} g</strong></span><span>Carbs<strong>{number(nutritionTargets.carbs, 1)} g</strong></span><span>Fat<strong>{number(nutritionTargets.fat, 1)} g</strong></span></div></div>
+      <p className="cal-field-hint" id="cal-macro-rule">Protein: 175 g/day. Fat: 25% of daily budget. Carbs: remaining energy after protein and fat. Fibre: 0.014 g per kcal of daily budget.</p>
+      <div className="cal-budget-preview"><span>{resolved.predicted ? 'Predicted food budget with carry' : 'Food budget with carry'}</span><strong>{number(previewBudget, 1)} kcal</strong><div className="cal-target-carry-preview"><span>Base budget<strong>{number(previewAllowance.baseBudget, 1)} kcal</strong></span><span>Carry from earlier days<strong>{signedNumber(carryIn)} kcal</strong></span></div><p>Base budget is calories burned minus the deficit target, with a minimum of 0. Carry-in then adjusts the food budget.</p><div className="cal-target-macro-preview"><span>Protein<strong>{number(nutritionTargets.protein, 1)} g</strong></span><span>Carbs<strong>{number(nutritionTargets.carbs, 1)} g</strong></span><span>Fat<strong>{number(nutritionTargets.fat, 1)} g</strong></span><span>Fibre<strong>{number(nutritionTargets.fiber, 1)} g</strong></span></div></div>
       {previewAllowance.rawBudget < 0 && <p className="cal-macro-budget-note">The food budget is shown as 0 kcal. The calorie debt stays in the running balance.</p>}
       {nutritionTargets.budgetTooLow && <p className="cal-macro-budget-note">Current calorie budget is too low for 175 g protein and 25% fat. Carb target is 0 g.</p>}
       <label className="cal-checkbox"><input type="checkbox" checked={makeDefault} onChange={event => setMakeDefault(event.target.checked)}/><span>Use this deficit target as my default<small>Applies to days without their own saved targets. Manual calories burned applies only to this date; new days use Garmin.</small></span></label>

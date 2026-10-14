@@ -15,6 +15,7 @@ export function macroTargets(budget: number) {
     protein: DAILY_PROTEIN_GRAMS,
     fat: fatEnergy / 9,
     carbs: carbEnergy / 4,
+    fiber: budget * 0.014,
     proteinEnergy, fatEnergy, carbEnergy,
     budgetTooLow: budget * 0.75 < proteinEnergy,
   };
