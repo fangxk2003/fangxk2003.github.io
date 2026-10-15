@@ -6,14 +6,18 @@ function finite(value: number, label: string, nonNegative = false): number {
   return value;
 }
 
-/** Clamp the available allowance only; retain any debt in the running balance. */
+export const MAX_DAILY_DEFICIT = 1000;
+
+/** Limit the budgeted deficit; the raw allowance retains all unpaid debt. */
 export function adjustedBudget(burned: number, deficit: number, carryIn = 0) {
   finite(burned, 'calories burned', true);
   finite(deficit, 'deficit target', true);
   finite(carryIn, 'carried calorie balance');
   const baseBudget = Math.max(0, burned - deficit);
   const rawBudget = finite(baseBudget + carryIn, 'adjusted calorie budget');
-  return { baseBudget, carryIn, rawBudget, budget: Math.max(0, rawBudget) };
+  const budget = Math.max(0, rawBudget, burned - MAX_DAILY_DEFICIT);
+  const deferredDebt = finite(budget - rawBudget, 'deferred calorie debt');
+  return { baseBudget, carryIn, rawBudget, budget, deferredDebt };
 }
 
 export interface BalanceDay extends ReturnType<typeof adjustedBudget> {
@@ -41,6 +45,7 @@ export function calorieLedger(data: TrackerData, garminDays: readonly GarminDay[
     const readings = [imported.get(date), imported.get(addDays(date, -1)), latestResting].filter((day): day is GarminDay => day !== undefined);
     const reading = effectiveBurned(date, settings, readings, currentDay);
     const amounts = adjustedBudget(reading.burned, settings.deficit, carry);
+    // Settle against the full allowance, so the daily deficit cap never forgives debt.
     const row: BalanceDay = { date, ...amounts, eaten: eaten.get(date)!, balance: finite(amounts.rawBudget - eaten.get(date)!, 'running calorie balance'), available: !reading.unavailable, settled: date < currentDay && !reading.unavailable };
     days[date] = row;
     if (row.settled) { carry = row.balance; completed.push(row); }
