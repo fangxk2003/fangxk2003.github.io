@@ -85,7 +85,7 @@ test('EU carbohydrate stays unchanged while a disallowed fibre estimate is disca
 });
 
 test('printed Nordic chickpea carbohydrate survives absent fibre and uncertain convention metadata', async () => {
-  for (const carbohydrateLabel of ['Hiilihydraatteja/Kolhydrat/Kulhydrat', 'Hiilihydraatit', 'Hiilihydraattia', 'Kolhydrat', 'Kolhydrater', 'Kulhydrat', 'Kulhydrater', ' Kolhydrater / Kulhydrat ']) {
+  for (const carbohydrateLabel of ['Hiilihydraatteja/Kolhydrat/Kulhydrat', 'Hiilihydraatit', 'Hiilihydraattia', 'Kolhydrat', 'Kolhydrater', 'Kulhydrat', 'Kulhydrater', ' Kolhydrater / Kulhydrat ', 'Hiilihydraatteja / \nKolhydrat / \nKulhydrat']) {
     for (const carbohydrateConvention of ['unknown', 'includes_fiber', 'excludes_fiber']) {
       const output = await extractFoodPhotos(photos, options(draft({
         name: 'Chickpeas', protein: 6.9, fat: 2.5, carbs: 14, fiber: null,
@@ -105,6 +105,13 @@ test('printed Nordic carbohydrate zero is preserved with absent fibre', async ()
   })));
   assert.equal(output.carbs, 0);
   assert.equal(output.fiber, null);
+});
+
+test('separator-only row headings cannot establish EU carbohydrate', async () => {
+  const output = await extractFoodPhotos(photos, options(draft({
+    carbohydrateLabel: ' / ; | ', carbohydrateConvention: 'unknown', carbs: 14, fiber: null,
+  })));
+  assert.equal(output.carbs, null);
 });
 
 test('Nordic product names cannot establish the label convention or invent unreadable carbs', async () => {

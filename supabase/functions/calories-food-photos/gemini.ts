@@ -125,9 +125,9 @@ function conventionFromHeading(heading: string | null): 'includes_fiber' | 'excl
   const text = heading.normalize('NFKC').toLowerCase().trim();
   // Explicit total-carbohydrate wording wins on translated US-style labels.
   if (/\btotal\s+carbohydrates?\b/.test(text)) return 'includes_fiber';
-  const rows = text.split(/[\/|;\n]+/).map(row => row.trim());
+  const rows = text.split(/[\/|;\n]+/).map(row => row.trim()).filter(Boolean);
   const nordicHeading = /^(?:hiilihydraatteja|hiilihydraatit|hiilihydraattia|kolhydrat(?:er)?|kulhydrat(?:er)?)$/;
-  return rows.every(row => nordicHeading.test(row)) ? 'excludes_fiber' : null;
+  return rows.length > 0 && rows.every(row => nordicHeading.test(row)) ? 'excludes_fiber' : null;
 }
 
 /** Provider-only convention metadata is removed from the public editor draft. */
