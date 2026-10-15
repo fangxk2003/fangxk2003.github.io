@@ -583,3 +583,6 @@
 @keyframes cal-photo-spin { to { transform: rotate(360deg); } }
 @media (max-width: 480px) { .cal-photo-grid { gap: 8px; } .cal-form .cal-photo-choose { padding: 7px; gap: 6px; } }
 @media (prefers-reduced-motion: reduce) { .cal-photo-spinner { animation: none; } }
+
+.cal-entry-mode-with-bank { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 760px) { .cal-nav button { min-width: 0; padding-inline: 9px; } }

@@ -1,6 +1,6 @@
 # Connect Calories to your Supabase project
 
-The app lives at `https://fangxk2003.github.io/calories/`. GitHub Pages serves the interface; Supabase stores the private food library, daily entries, and targets. Both iPhone and Mac sign in to the same account and read the same saved data.
+The app lives at `https://fangxk2003.github.io/calories/`. GitHub Pages serves the interface; Supabase stores the private food library, prepared food bank portions, daily entries, and targets. Both iPhone and Mac sign in to the same account and read the same saved data.
 
 ## 1. Create your one account
 
@@ -19,7 +19,7 @@ Supabase verifies the password; the app never saves it. Email/password sign-in r
 4. In the project's Data API settings, keep the **`private`** schema out of **Exposed schemas**. The app's table and safe boolean RPC live in `public`.
 5. Run [`backend/calories/verify.sql`](../backend/calories/verify.sql) in SQL Editor. It should finish with **“Calories database verification passed; all test changes rolled back.”** It creates temporary test sessions and temporarily changes tracker state in one transaction, then rolls everything back. If an assertion fails, run `ROLLBACK;` before retrying and fix the reported issue.
 
-The setup creates `public.calories_state`, with one JSON document for your food library, entries, daily targets, and default targets. It can be rerun for the same UUID without deleting your records. Changing the configured owner while records exist fails rather than transferring those records.
+The setup creates `public.calories_state`, with one JSON document for your food library, food bank, entries, daily targets, and default targets. It can be rerun for the same UUID without deleting your records. Changing the configured owner while records exist fails rather than transferring those records.
 
 Database protections apply independently of the interface:
 
@@ -112,3 +112,11 @@ The journal keeps a running calorie balance across completed dates that contain 
 The displayed food budget limits the combined budgeted deficit (the day's saved deficit target plus carried debt) to **1,000 kcal/day**. It is the largest of zero, the full allowance, and burned calories minus 1,000. Excess debt stays in the full running balance for later logged days. With 3,000 kcal burned, a 500 kcal deficit target, and 1,500 kcal of debt, the displayed food budget is 2,000 kcal. Eating that budget repays 500 kcal of debt; the remaining 1,000 kcal carries on. Eating 2,000 kcal on the next two logged days clears another 500 kcal each day. Positive credit remains available in full. A saved deficit target above 1,000 is also subject to the limit, with its unapplied portion retained in the balance.
 
 Settlement always uses the full allowance minus actual intake, including debt deferred by the limit. The displayed budget has a minimum of zero; fat/carbohydrate/fibre targets follow that displayed budget. Protein stays fixed at 175 g. Actual burned-minus-intake deficit is a separate reading and can exceed the budgeted limit if actual intake is below the allowance. Editing old entries or daily targets, or receiving corrected Garmin readings, recalculates later balances. Balances are derived from the synced journal and Garmin data, so no second balance record needs saving.
+
+## Food bank
+
+Open **Food bank → Prepare portions** to set aside groceries before eating them. Add one or more library foods, enter each quantity **per portion**, and choose how many identical portions to prepare. For example, 150 g chicken and 200 g rice with a count of 3 creates three separate portions, each containing those amounts. A portion keeps its own nutrition snapshot, so editing or removing the library food later does not change prepared food.
+
+Use **Eat → Eat and log** on a portion, choosing the journal date and meal. The portion disappears from the bank and all its ingredient entries appear together in that meal. The move is one journal save: either the entire move syncs or the existing save/conflict notice appears. Consuming the same saved portion twice cannot create a second set of entries. Uneaten portions contribute nothing to daily calories, carry, history, or the 14-day food-use ranking. Consumed ingredients count in that ranking like other saved food entries. Removing an uneaten portion discards it without logging food. Removing a consumed journal entry does not restock the bank.
+
+Complete JSON backups include the food bank. New saves use format version 2; version 1 backups are still accepted with an empty bank. Older app tabs reject version 2 instead of silently deleting the new bank data; refresh the app on both devices after updating. The existing owner-only storage, 30-day session checks, and revision conflict protection cover the bank without a database migration.

@@ -98,7 +98,7 @@ test('import rejects duplicate identities and malformed records without silently
   const duplicateEntry = backup();
   duplicateEntry.entries.push({ ...entry, meal: 'Dinner' });
   assert.throws(() => normalizeData(duplicateEntry), /duplicate IDs/);
-  for (const raw of [null, [], { ...emptyData(), version: 2 }, { ...emptyData(), foods: null }]) {
+  for (const raw of [null, [], { ...emptyData(), version: 3 }, { ...emptyData(), foods: null }]) {
     assert.throws(() => normalizeData(raw));
   }
 });

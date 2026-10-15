@@ -1,0 +1,73 @@
+.cal-bank-view { min-width: 0; }
+.cal-bank-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.cal-bank-search { display: flex; align-items: center; gap: 10px; width: min(340px, 100%); min-width: 0; min-height: 46px; padding: 0 14px; border: 1px solid var(--cal-border, #dfe5d6); border-radius: 10px; background: var(--cal-panel, #fafbf6); color: #697564; }
+.cal-bank-search svg { flex-shrink: 0; }
+.cal-bank-search input { width: 100%; min-width: 0; min-height: 44px; border: 0; outline: 0; background: transparent; color: var(--cal-ink, #35452f); font: inherit; font-size: 13px; }
+.cal-bank-search:focus-within { outline: 2px solid #789364; outline-offset: 2px; }
+.cal-bank-count { margin: 15px 0 18px !important; color: #697564; font-size: 12px; line-height: 1.7; }
+.cal-bank-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 17px; }
+.cal-bank-grid > .cal-bank-card { min-width: 0; padding: 18px 19px 0; }
+.cal-bank-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #697564; font-size: 11px; line-height: 1.5; }
+.cal-bank-card h2 { margin-bottom: 12px; }
+.cal-bank-ingredients { list-style: none; padding: 0; margin: 0; }
+.cal-bank-ingredients li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid #e8ecdf; font-size: 12px; line-height: 1.6; }
+.cal-bank-ingredients li > span { min-width: 0; overflow-wrap: anywhere; color: #4e6243; }
+.cal-bank-ingredients small { display: block; color: #697564; font-size: 11px; line-height: 1.6; }
+.cal-bank-ingredients li > strong { flex-shrink: 0; text-align: right; color: #5a6c4e; font-size: 12px; font-weight: 500; }
+.cal-bank-nutrition { padding: 14px 0 17px; }
+.cal-bank-energy { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 5px 12px; }
+.cal-bank-energy > span { color: #697564; font-size: 11px; }
+.cal-bank-energy > strong { font-size: 25px; color: #4e693e; font-weight: 500; line-height: 1.4; letter-spacing: -.6px; overflow-wrap: anywhere; }
+.cal-bank-energy small { color: #697564; font-size: 11px; font-weight: 400; letter-spacing: 0; }
+.cal-bank-macros { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 11px; }
+.cal-bank-macros > span { color: #697564; font-size: 11px; line-height: 1.6; }
+.cal-bank-macros strong { display: block; margin-top: 3px; font-size: 12px; font-weight: 500; color: #526746; overflow-wrap: anywhere; }
+.cal-bank-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 66px; margin-top: auto; border-top: 1px solid #e8ecdf; }
+.cal-bank-card-actions .cal-bank-eat { min-height: 44px; padding: 0 16px; background: #e6eddc; border-color: #d4dfc8; color: #49643a; }
+.cal-bank-card-actions .cal-bank-eat:hover { background: #dce7ce; }
+.cal-bank-touch, .cal-bank-card .cal-bank-touch { min-width: 44px; min-height: 44px; }
+.cal-bank-remove-confirm { margin-top: auto; padding-top: 12px; border-top: 1px solid #e8ecdf; }
+.cal-bank-remove-confirm p { font-size: 12px; line-height: 1.7; color: #697564; }
+.cal-bank-remove-confirm > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 52px; }
+.cal-bank-remove-confirm .cal-text-button { font-size: 12px; }
+.cal-bank-empty { margin-top: 25px; }
+.cal-bank-name-grid { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); align-items: end; }
+.cal-form .cal-bank-name-grid label > .cal-field-hint { display: inline; font-size: 11px; font-weight: 400; }
+.cal-bank-section-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 3px 12px; border-top: 1px solid #e5eadc; padding-top: 15px; }
+.cal-bank-section-heading strong { font-size: 13px; font-weight: 550; color: #4d6341; }
+.cal-bank-section-heading > span { font-size: 11px; color: #697564; line-height: 1.6; }
+.cal-bank-ingredient-rows { display: flex; flex-direction: column; gap: 15px; }
+.cal-bank-ingredient-row { padding: 12px; margin: 0; border: 1px solid #e0e7d5; border-radius: 10px; background: #f5f7ee; min-width: 0; }
+.cal-bank-ingredient-row legend { padding: 0 5px; margin-left: -3px; color: #697564; font-size: 11px; font-weight: 500; }
+.cal-bank-ingredient-fields { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); gap: 12px; align-items: start; position: relative; }
+.cal-bank-ingredient-fields > .cal-food-picker { min-width: 0; }
+.cal-bank-ingredient-fields .cal-food-picker-controls > select { min-width: 0; }
+.cal-bank-match-count { color: #697564; font-size: 11px; line-height: 1.5; }
+.cal-bank-match-count:empty { display: none; }
+.cal-bank-remove-ingredient { grid-column: 2; justify-self: end; margin-top: -4px; }
+.cal-bank-add-ingredient { align-self: flex-start; font-size: 12px; margin-top: -5px; }
+.cal-bank-editor-preview { padding: 1px 15px 0; border: 1px solid #dde7ce; border-radius: 10px; background: #eef3e4; }
+.cal-bank-editor-preview .cal-bank-nutrition { padding-bottom: 14px; }
+.cal-bank-editor-preview .cal-bank-energy > span { font-size: 12px; }
+.cal-bank-editor-preview > p { padding-bottom: 13px; margin-top: -1px; color: #697564; font-size: 12px; line-height: 1.7; }
+.cal-bank-empty-library { padding: 11px 13px; background: #f6f1e6; border: 1px solid #e9dfcb; border-radius: 8px; font-size: 12px; line-height: 1.7; color: #806a4c; }
+.cal-bank-consume-summary { background: #f2f5e9; border: 1px solid #dfe7d1; border-radius: 11px; padding: 16px 17px 0; margin-bottom: 21px; }
+.cal-bank-consume-summary h3 { font-size: 16px; line-height: 1.5; font-weight: 550; color: #456036; margin: 0 0 13px; overflow-wrap: anywhere; }
+.cal-bank-consume-summary .cal-bank-nutrition { padding-top: 13px; }
+@media (max-width: 1000px) { .cal-bank-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .cal-bank-toolbar { flex-direction: column; align-items: stretch; gap: 11px; }
+  .cal-bank-search { width: 100%; }
+  .cal-bank-search input { font-size: 16px; }
+  .cal-bank-toolbar > .cal-button { align-self: flex-start; }
+  .cal-bank-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .cal-bank-grid > .cal-bank-card { padding: 16px 18px 0; }
+  .cal-bank-card h2 { font-size: 18px; }
+  .cal-bank-energy > strong { font-size: 25px; }
+  .cal-bank-macros { gap: 10px; }
+  .cal-bank-name-grid { grid-template-columns: minmax(0, 1fr); }
+  .cal-bank-ingredient-fields { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .cal-bank-remove-ingredient { grid-column: 1; margin-top: -7px; }
+  .cal-bank-section-heading { align-items: flex-start; flex-direction: column; }
+  .cal-bank-consume-summary { padding: 14px 15px 0; }
+}

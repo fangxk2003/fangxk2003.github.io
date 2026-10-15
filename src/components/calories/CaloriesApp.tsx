@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { addDays, dayTotals, emptyData, energyFromMacros, macrosForFood, manualMealEntry, normalizeData, settingsForDay, todayISO, type DaySettings, type Entry, type Food, type TrackerData } from '../../lib/calories/model';
+import { addDays, dayTotals, emptyData, energyFromMacros, macrosForFood, manualMealEntry, normalizeData, settingsForDay, todayISO, type DaySettings, type Entry, type Food, type TrackerData, type BankPortion } from '../../lib/calories/model';
 import { createClient } from '../../lib/calories/client';
 import { effectiveBurned, emptyGarminSnapshot, type EffectiveBurned, type GarminDay, type GarminSnapshot, type GarminStatus } from '../../lib/calories/garmin';
 import { DAILY_PROTEIN_GRAMS, macroTargets, nutrientProgress } from '../../lib/calories/nutrition';
@@ -7,12 +7,14 @@ import { adjustedBudget, calorieLedger, carryBefore, MAX_DAILY_DEFICIT } from '.
 import { sortFoodsByRecentUse } from '../../lib/calories/food-order';
 import { normalizeFoodPhotoDraft, type FoodPhotoDraft, type FoodPhotoRequest } from '../../lib/calories/food-photos';
 import FoodPhotoImport from './FoodPhotoImport';
+import { FoodBankView, FoodBankEditor, FoodBankConsume } from './FoodBank';
+import { consumeFoodBankPortion } from '../../lib/calories/food-bank';
 import './calories.css';
 
-type View = 'journal' | 'foods' | 'history';
+type View = 'journal' | 'foods' | 'bank' | 'history';
 type Phase = 'loading' | 'setup' | 'login' | 'ready';
 type SaveState = 'saved' | 'pending' | 'saving' | 'error';
-type ModalState = { type: 'entry'; entry?: Entry; foodId?: string } | { type: 'food'; food?: Food; returnToLog?: boolean } | { type: 'targets' } | { type: 'transfer' } | { type: 'garmin' } | null;
+type ModalState = { type: 'entry'; entry?: Entry; foodId?: string } | { type: 'food'; food?: Food; returnToLog?: boolean } | { type: 'targets' } | { type: 'transfer' } | { type: 'garmin' } | { type: 'bank-prepare' } | { type: 'bank-consume'; portion: BankPortion } | null;
 type IconName = 'leaf' | 'plus' | 'left' | 'right' | 'close' | 'edit' | 'trash' | 'settings' | 'download' | 'lock' | 'logout' | 'check' | 'search' | 'calendar' | 'arrow' | 'book' | 'watch' | 'refresh';
 
 function Icon({ name, size = 20, ...props }: { name: IconName; size?: number; className?: string }) {
@@ -345,6 +347,18 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
     setModal(null);
   }
 
+  function saveBankPortions(portions: BankPortion[]) {
+    updateData(current => normalizeData({ ...current, foodBank: [...current.foodBank, ...portions] }));
+    setModal(null); setView('bank');
+  }
+
+  function eatBankPortion(portionId: string, entryDate: string, meal: string) {
+    updateData(current => consumeFoodBankPortion(current, portionId, entryDate, meal));
+    setModal(null); openDay(entryDate);
+  }
+
+  function openFoodBank() { setModal(null); setView('bank'); }
+
   function openDay(nextDate: string) { setDate(nextDate); setView('journal'); setDeleteEntryId(null); }
 
   const dayEntries = data.entries.filter(entry => entry.date === date);
@@ -395,7 +409,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
       <header className="cal-header">
         <a href="/calories/" className="cal-brand" aria-label="Calories home"><span className="cal-brand-mark"><Icon name="leaf" size={22}/></span><span>calories<span className="cal-brand-dot">.</span></span></a>
         <nav className="cal-nav" aria-label="Journal navigation">
-          {([['journal', 'Journal'], ['foods', 'Foods'], ['history', 'History']] as [View, string][]).map(([key, label]) => <button key={key} className={view === key ? 'is-active' : ''} aria-current={view === key ? 'page' : undefined} onClick={() => { setView(key); setDeleteFoodId(null); setDeleteEntryId(null); }}>{label}</button>)}
+          {([['journal', 'Journal'], ['foods', 'Foods'], ['bank', 'Food bank'], ['history', 'History']] as [View, string][]).map(([key, label]) => <button key={key} className={view === key ? 'is-active' : ''} aria-current={view === key ? 'page' : undefined} onClick={() => { setView(key); setDeleteFoodId(null); setDeleteEntryId(null); }}>{label}</button>)}
         </nav>
         <div className="cal-header-tools">
           <span className={`cal-sync cal-sync-${saveState}`} role="status" aria-live="polite">{saveState === 'saved' ? <Icon name="check" size={13}/> : <span className="cal-status-dot"/>}<span>{saveState === 'saved' ? 'All saved' : saveState === 'error' ? 'Not saved' : 'Saving…'}</span></span>
@@ -456,6 +470,11 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
           </section>
         </>}
 
+        {view === 'bank' && <>
+          <section className="cal-page-heading"><div><div className="cal-eyebrow">PREPARED FOR LATER</div><h1>Food bank<span className="cal-heading-dot">.</span></h1><p>Your portions, ready to log.</p></div></section>
+          <FoodBankView portions={data.foodBank} onPrepare={() => setModal({ type: 'bank-prepare' })} onEat={portion => setModal({ type: 'bank-consume', portion })} onRemove={id => updateData(current => ({ ...current, foodBank: current.foodBank.filter(portion => portion.id !== id) }))}/>
+        </>}
+
         {view === 'foods' && <>
           <section className="cal-page-heading"><div><div className="cal-eyebrow">YOUR OWN LITTLE LIBRARY</div><h1>Everyday foods<span className="cal-heading-dot">.</span></h1><p>Most logged in the last 14 days, first.</p></div><button className="cal-button cal-button-primary" onClick={() => setModal({ type: 'food' })}><Icon name="plus" size={18}/>Add food</button></section>
           <div className="cal-library-bar"><label className="cal-search"><Icon name="search" size={19}/><input type="search" placeholder="Find a food…" aria-label="Search food library" value={foodSearch} onChange={event => setFoodSearch(event.target.value)}/></label><span>{data.foods.length} {data.foods.length === 1 ? 'food' : 'foods'} in your library</span></div>
@@ -489,8 +508,10 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
         <footer className="cal-footer"><span>A little more aware, every day.</span><span>Personal journal · <a href="/">fangxk2003</a></span></footer>
       </main>
 
-      {modal && <Modal onClose={() => setModal(null)}>{modal.type === 'entry' ? <EntryEditor key={modal.entry?.id ?? modal.foodId ?? 'new-entry'} entry={modal.entry} initialFoodId={modal.foodId} foods={sortedFoods} date={date} onSave={saveEntry} onAddFood={() => setModal({ type: 'food', returnToLog: true })} onClose={() => setModal(null)}/>
+      {modal && <Modal onClose={() => setModal(null)}>{modal.type === 'entry' ? <EntryEditor key={modal.entry?.id ?? modal.foodId ?? 'new-entry'} entry={modal.entry} initialFoodId={modal.foodId} foods={sortedFoods} date={date} onSave={saveEntry} onAddFood={() => setModal({ type: 'food', returnToLog: true })} onFoodBank={openFoodBank} bankCount={data.foodBank.length} onClose={() => setModal(null)}/>
         : modal.type === 'food' ? <FoodEditor key={modal.food?.id ?? 'new-food'} food={modal.food} readPhotos={(input, signal) => client.readFoodPhotos(input, signal)} onSave={saveFood} onClose={() => setModal(null)}/>
+        : modal.type === 'bank-prepare' ? <FoodBankEditor foods={sortedFoods} onSave={saveBankPortions} onClose={() => setModal(null)}/>
+        : modal.type === 'bank-consume' ? <FoodBankConsume portion={modal.portion} date={date} onSave={(entryDate, meal) => eatBankPortion(modal.portion.id, entryDate, meal)} onClose={() => setModal(null)}/>
         : modal.type === 'targets' ? <TargetsEditor date={date} currentDay={currentDay} settings={targets} garminDays={garmin.days} carryIn={carryIn} onSave={(settings, makeDefault) => { updateData(current => ({ ...current, days: { ...current.days, [date]: settings }, defaults: makeDefault ? { ...current.defaults, deficit: settings.deficit, protein: DAILY_PROTEIN_GRAMS } : current.defaults })); setModal(null); }} onClose={() => setModal(null)}/>
         : modal.type === 'garmin' ? <GarminConnection date={date} currentDay={currentDay} snapshot={garmin} loading={garminLoading || garminDisconnecting} disconnecting={garminDisconnecting} error={garminLoadError} onRefresh={() => void refreshGarmin()} onDisconnect={() => void disconnectGarmin()} onClose={() => setModal(null)}/>
         : <TransferDialog data={data} onImport={(next) => { updateData(() => next); setModal(null); }} onClose={() => setModal(null)}/>}</Modal>}
@@ -542,7 +563,7 @@ function NumericField({ label, value, onChange, unit = 'g', min = 0, required = 
   return <label>{label}<span className="cal-unit-input"><input type="number" inputMode="decimal" value={value} onChange={event => onChange(event.target.value)} min={min} max={100000000} step="any" required={required} aria-describedby={describedBy}/><span>{unit}</span></span></label>;
 }
 
-function EntryEditor({ entry, initialFoodId, foods, date, onSave, onAddFood, onClose }: { entry?: Entry; initialFoodId?: string; foods: Food[]; date: string; onSave: (entry: Entry) => void; onAddFood: () => void; onClose: () => void }) {
+function EntryEditor({ entry, initialFoodId, foods, date, onSave, onAddFood, onFoodBank, bankCount, onClose }: { entry?: Entry; initialFoodId?: string; foods: Food[]; date: string; onSave: (entry: Entry) => void; onAddFood: () => void; onFoodBank: () => void; bankCount: number; onClose: () => void }) {
   const manualEditing = entry?.source === 'manual' || Boolean(entry && entry.foodId === `manual:${entry.id}`);
   const [mode, setMode] = useState<'library' | 'manual'>(entry ? manualEditing ? 'manual' : 'library' : foods.length ? 'library' : 'manual');
   const initialFood = foods.find(food => food.id === (manualEditing ? initialFoodId : entry?.foodId ?? initialFoodId)) ?? foods[0];
@@ -600,7 +621,7 @@ function EntryEditor({ entry, initialFoodId, foods, date, onSave, onAddFood, onC
   return <>
     <ModalHeader title={entry ? 'Edit your entry' : 'What’s on the menu?'} eyebrow={entry ? 'DAILY JOURNAL' : 'LOG A FOOD'} onClose={onClose}/>
     <form className="cal-form" onSubmit={submit}>
-      <div className="cal-entry-mode-switch" role="group" aria-label="Entry method"><button type="button" className={mode === 'library' ? 'is-active' : ''} aria-pressed={mode === 'library'} onClick={() => changeMode('library')}>Food library</button><button type="button" className={mode === 'manual' ? 'is-active' : ''} aria-pressed={mode === 'manual'} onClick={() => changeMode('manual')}>Manual estimate</button></div>
+      <div className={`cal-entry-mode-switch${!entry && bankCount ? ' cal-entry-mode-with-bank' : ''}`} role="group" aria-label="Entry method"><button type="button" className={mode === 'library' ? 'is-active' : ''} aria-pressed={mode === 'library'} onClick={() => changeMode('library')}>Food library</button><button type="button" className={mode === 'manual' ? 'is-active' : ''} aria-pressed={mode === 'manual'} onClick={() => changeMode('manual')}>Manual estimate</button>{!entry && bankCount > 0 && <button type="button" onClick={onFoodBank}>Food bank ({bankCount})</button>}</div>
       {mode === 'library' ? <>
         <div className="cal-food-picker" role="group" aria-labelledby="cal-entry-food-label"><label id="cal-entry-food-label" htmlFor="cal-entry-food-filter">Food</label><div className="cal-food-picker-controls"><input id="cal-entry-food-filter" type="text" aria-label="Filter foods" aria-describedby="cal-entry-food-matches" value={foodFilter} onChange={event => filterFoods(event.target.value)} placeholder="Type part of a food name" autoComplete="off" autoCapitalize="none" spellCheck={false} autoFocus/><select aria-label="Food" aria-describedby="cal-entry-food-matches" value={foodId} onChange={event => { const food = filteredFoods.find(item => item.id === event.target.value); setFoodId(food?.id ?? ''); if (food) setQuantity(String(food.baseQuantity)); setError(''); }} required disabled={filteredFoods.length === 0}>{filteredFoods.length === 0 && <option value="" disabled>No matching foods</option>}{filteredFoods.map(food => <option key={food.id} value={food.id}>{food.name}{food.id === savedFood?.id ? ' (saved entry)' : ''} · {food.state}</option>)}</select></div><small className="cal-field-hint" id="cal-entry-food-matches" role="status">{filteredFoods.length === 0 ? foods.length === 0 && !savedFood ? 'Your library is empty. Add a food below or choose Manual estimate.' : 'No matching foods. Try another name or add a food below.' : foodFilter.trim() ? `${filteredFoods.length} matching ${filteredFoods.length === 1 ? 'food' : 'foods'}` : 'Type to filter the food list.'}</small></div>
         <button className="cal-text-button cal-add-food-inline" type="button" onClick={onAddFood}><Icon name="plus" size={15}/>Add a new food to your library</button>
@@ -778,5 +799,5 @@ function TransferDialog({ data, onImport, onClose }: { data: TrackerData; onImpo
     catch (error) { setError(errorMessage(error)); }
     finally { setBusy(false); }
   }
-  return <><ModalHeader title="Keep a copy of your days" eyebrow="BACKUP & IMPORT" onClose={onClose}/><p className="cal-modal-intro">Download your journal whenever you like.</p><div className="cal-transfer-option"><div><strong>Complete backup</strong><p>Foods, journal entries, and targets in a JSON file. Use this to restore your journal.</p></div><button className="cal-button cal-button-small" onClick={() => downloadFile(JSON.stringify(data, null, 2), `calories-backup-${exportDate}.json`, 'application/json')}><Icon name="download" size={16}/>JSON</button></div><div className="cal-transfer-option"><div><strong>Spreadsheet export</strong><p>All logged entries, quantities, and nutrition. Opens in Numbers or Google Sheets.</p></div><button className="cal-button cal-button-small" onClick={exportCSV}><Icon name="download" size={16}/>CSV</button></div><div className="cal-import-section"><h3>Restore a backup</h3><p>Choose a JSON file previously exported from this app.</p><label className="cal-file-label">{busy ? 'Reading backup…' : 'Choose JSON backup'}<input type="file" accept=".json,application/json" onChange={event => void selectFile(event.target.files?.[0])} disabled={busy}/></label>{incoming && <div className="cal-import-confirm"><strong>{filename}</strong><p>{incoming.foods.length} foods · {incoming.entries.length} entries</p><p>This will replace your current journal, food library, and targets on every device. Export a backup first if you want to keep them.</p><button className="cal-button cal-button-danger cal-button-small" onClick={() => onImport(incoming)}>Replace journal with this backup</button></div>}{error && <p className="cal-form-error" role="alert">{error}</p>}</div><div className="cal-modal-actions"><button className="cal-button cal-button-primary" onClick={onClose}>Done</button></div></>;
+  return <><ModalHeader title="Keep a copy of your days" eyebrow="BACKUP & IMPORT" onClose={onClose}/><p className="cal-modal-intro">Download your journal whenever you like.</p><div className="cal-transfer-option"><div><strong>Complete backup</strong><p>Foods, food bank portions, journal entries, and targets in a JSON file. Use this to restore your journal.</p></div><button className="cal-button cal-button-small" onClick={() => downloadFile(JSON.stringify(data, null, 2), `calories-backup-${exportDate}.json`, 'application/json')}><Icon name="download" size={16}/>JSON</button></div><div className="cal-transfer-option"><div><strong>Spreadsheet export</strong><p>All logged entries, quantities, and nutrition. Opens in Numbers or Google Sheets.</p></div><button className="cal-button cal-button-small" onClick={exportCSV}><Icon name="download" size={16}/>CSV</button></div><div className="cal-import-section"><h3>Restore a backup</h3><p>Choose a JSON file previously exported from this app.</p><label className="cal-file-label">{busy ? 'Reading backup…' : 'Choose JSON backup'}<input type="file" accept=".json,application/json" onChange={event => void selectFile(event.target.files?.[0])} disabled={busy}/></label>{incoming && <div className="cal-import-confirm"><strong>{filename}</strong><p>{incoming.foods.length} foods · {incoming.foodBank.length} bank portions · {incoming.entries.length} entries</p><p>This will replace your current journal, food library, food bank, and targets on every device. Export a backup first if you want to keep them.</p><button className="cal-button cal-button-danger cal-button-small" onClick={() => onImport(incoming)}>Replace journal with this backup</button></div>}{error && <p className="cal-form-error" role="alert">{error}</p>}</div><div className="cal-modal-actions"><button className="cal-button cal-button-primary" onClick={onClose}>Done</button></div></>;
 }

@@ -5,9 +5,11 @@ export type FoodState = 'Raw' | 'Cooked' | 'As served';
 export interface Macros { carbs: number; protein: number; fat: number; fiber: number; calories: number }
 export interface Food extends Macros { id: string; name: string; baseQuantity: number; unit: Unit; state: FoodState }
 export interface Entry extends Macros { id: string; date: string; meal: string; foodId: string; foodName: string; quantity: number; unit: Unit; state: FoodState; source?: 'manual' }
+export type BankItem = Omit<Entry, 'date' | 'meal' | 'source'>;
+export interface BankPortion { id: string; name: string; items: BankItem[] }
 export interface ManualMealInput { id: string; date: string; meal: string; name: string; carbs: number; protein: number; fat: number; fiber: number }
 export interface DaySettings { burned: number; deficit: number; protein: number; burnedSource?: 'manual' | 'garmin' }
-export interface TrackerData { version: 1; foods: Food[]; entries: Entry[]; days: Record<string, DaySettings>; defaults: DaySettings }
+export interface TrackerData { version: 2; foods: Food[]; entries: Entry[]; foodBank: BankPortion[]; days: Record<string, DaySettings>; defaults: DaySettings }
 
 /** This journal uses 4/4/9; fibre is tracked separately and excluded by preference.
  * Keep full precision for portion calculations; round only when displaying. */
@@ -16,7 +18,7 @@ export function energyFromMacros(macros: Pick<Macros, 'protein' | 'carbs' | 'fat
 }
 
 export function emptyData(): TrackerData {
-  return { version: 1, foods: [], entries: [], days: {}, defaults: { burned: 0, deficit: 500, protein: DAILY_PROTEIN_GRAMS } };
+  return { version: 2, foods: [], entries: [], foodBank: [], days: {}, defaults: { burned: 0, deficit: 500, protein: DAILY_PROTEIN_GRAMS } };
 }
 
 /** An untouched day starts with Garmin; recorded days and explicit day overrides stay intact. */
@@ -99,13 +101,13 @@ export function manualMealEntry(input: ManualMealInput): Entry {
 /** Strict validation for imported and remotely loaded data. No silent data loss. */
 export function normalizeData(raw: unknown): TrackerData {
   const v = record(raw);
-  if (v.version !== 1 || !Array.isArray(v.foods) || !Array.isArray(v.entries) || v.foods.length > 10000 || v.entries.length > 100000) throw new Error('This is not a supported Calories backup.');
-  const foods: Food[] = v.foods.map(rawFood => {
+  if ((v.version !== 1 && v.version !== 2) || !Array.isArray(v.foods) || !Array.isArray(v.entries) || v.foods.length > 10000 || v.entries.length > 100000 || (v.version === 2 && (!Array.isArray(v.foodBank) || v.foodBank.length > 10000))) throw new Error('This is not a supported Calories backup.');
+  const foods: Food[] = Array.from(v.foods).map(rawFood => {
     const f = record(rawFood);
     const nutrients = macros(f);
     return { id: text(f.id, 'food ID'), name: text(f.name, 'food name'), baseQuantity: number(f.baseQuantity, 'base quantity', true), unit: unit(f.unit), state: state(f.state), ...nutrients, calories: number(energyFromMacros(nutrients), 'calculated calories') };
   });
-  const entries: Entry[] = v.entries.map(rawEntry => {
+  const entries: Entry[] = Array.from(v.entries).map(rawEntry => {
     const e = record(rawEntry);
     if (e.source !== undefined && e.source !== 'manual') throw new Error('Invalid entry source.');
     const id = text(e.id, 'entry ID');
@@ -115,7 +117,25 @@ export function normalizeData(raw: unknown): TrackerData {
     return { id, date: date(e.date), meal: text(e.meal, 'meal'), foodId, foodName: text(e.foodName, 'food name'), quantity: number(e.quantity, 'quantity', true), unit: unit(e.unit), state: state(e.state), ...macros(e), ...(manual ? { source: 'manual' as const } : {}) };
   });
   if (new Set(foods.map(f => f.id)).size !== foods.length || new Set(entries.map(e => e.id)).size !== entries.length) throw new Error('The backup contains duplicate IDs.');
+  const itemIds = new Set(entries.map(entry => entry.id));
+  const portionIds = new Set<string>();
+  const foodBank: BankPortion[] = v.version === 1 ? [] : Array.from(v.foodBank as unknown[]).map(rawPortion => {
+    const portion = record(rawPortion);
+    const id = text(portion.id, 'food-bank portion ID');
+    if (portionIds.has(id)) throw new Error('The backup contains duplicate IDs.');
+    portionIds.add(id);
+    if (!Array.isArray(portion.items) || portion.items.length < 1 || portion.items.length > 50) throw new Error('A food-bank portion must contain 1 to 50 ingredients.');
+    const items: BankItem[] = Array.from(portion.items).map(rawItem => {
+      const item = record(rawItem);
+      if (item.date !== undefined || item.meal !== undefined || item.source !== undefined) throw new Error('Invalid food-bank ingredient metadata.');
+      const itemId = text(item.id, 'food-bank ingredient ID');
+      if (itemIds.has(itemId)) throw new Error('The backup contains duplicate IDs.');
+      itemIds.add(itemId);
+      return { id: itemId, foodId: text(item.foodId, 'food ID'), foodName: text(item.foodName, 'food name'), quantity: number(item.quantity, 'quantity', true), unit: unit(item.unit), state: state(item.state), ...macros(item) };
+    });
+    return { id, name: text(portion.name, 'food-bank portion name'), items };
+  });
   const days: Record<string, DaySettings> = {};
   for (const [key, value] of Object.entries(record(v.days))) days[date(key)] = settings(value);
-  return { version: 1, foods, entries, days, defaults: settings(v.defaults) };
+  return { version: 2, foods, entries, foodBank, days, defaults: settings(v.defaults) };
 }
