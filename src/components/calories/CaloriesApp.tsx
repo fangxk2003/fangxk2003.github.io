@@ -5,7 +5,7 @@ import { effectiveBurned, emptyGarminSnapshot, type EffectiveBurned, type Garmin
 import { DAILY_PROTEIN_GRAMS, macroTargets, nutrientProgress } from '../../lib/calories/nutrition';
 import { adjustedBudget, calorieLedger, carryBefore, MAX_DAILY_DEFICIT } from '../../lib/calories/budget';
 import { sortFoodsByRecentUse } from '../../lib/calories/food-order';
-import { normalizeFoodPhotoDraft, PHOTO_NUTRIENTS, PHOTO_NUTRIENT_LABELS, type FoodPhotoDraft, type FoodPhotoRequest } from '../../lib/calories/food-photos';
+import { normalizeFoodPhotoDraft, type FoodPhotoDraft, type FoodPhotoRequest } from '../../lib/calories/food-photos';
 import FoodPhotoImport from './FoodPhotoImport';
 import './calories.css';
 
@@ -641,8 +641,6 @@ function FoodEditor({ food, readPhotos, onSave, onClose }: { food?: Food; readPh
   function submit(event: FormEvent) {
     event.preventDefault();
     if (photoBusy) return;
-    const missing = photoDraft ? PHOTO_NUTRIENTS.filter(field => !nutrients[field].trim()) : [];
-    if (missing.length) { setError(`Complete ${missing.map(field => PHOTO_NUTRIENT_LABELS[field].toLowerCase()).join(', ')} before saving this imported food. Enter 0 only if the food has none.`); return; }
     if (!name.trim() || !unit || !Number.isFinite(Number(baseQuantity)) || Number(baseQuantity) <= 0 || !Number.isFinite(calories) || calories > 1e8 || Object.values(nutrients).some(value => !Number.isFinite(Number(value)) || Number(value) < 0)) { setError('Add a food name, a label quantity greater than zero, a unit, and valid nutrition values.'); return; }
     onSave({ id: food?.id ?? newId(), name: name.trim(), baseQuantity: Number(baseQuantity), unit, state, carbs: Number(nutrients.carbs), protein: Number(nutrients.protein), fat: Number(nutrients.fat), fiber: Number(nutrients.fiber), calories });
   }
@@ -657,7 +655,7 @@ function FoodEditor({ food, readPhotos, onSave, onClose }: { food?: Food; readPh
           <label>Unit<select value={unit} onChange={event => { const nextUnit = event.target.value as Food['unit']; setUnit(nextUnit); if (!food && !photoDraft) setBaseQuantity(nextUnit === 'piece' ? '1' : '100'); }} required><option value="" disabled>Choose unit</option><option value="g">grams (g)</option><option value="ml">millilitres (ml)</option><option value="piece">piece</option></select></label>
           <label>State<select value={state} onChange={event => setState(event.target.value as Food['state'])}><option>As served</option><option>Raw</option><option>Cooked</option></select></label>
         </div>
-        <div className="cal-form-section-label"><strong>Nutrition per {baseQuantity || '—'} {unitLabel(unit, Number(baseQuantity))}</strong><p>{photoDraft ? 'Check every value before saving. Complete any empty fields; enter 0 only if the food has none.' : 'Enter the label’s values in grams. Leave blank for zero.'}</p></div>
+        <div className="cal-form-section-label"><strong>Nutrition per {baseQuantity || '—'} {unitLabel(unit, Number(baseQuantity))}</strong><p>Enter the label’s values in grams. Leave blank for zero.</p></div>
         <div className="cal-form-grid"><NumericField label="Protein" value={nutrients.protein} onChange={value => nutrient('protein', value)} required={false}/><NumericField label="Carbohydrate" value={nutrients.carbs} onChange={value => nutrient('carbs', value)} required={false}/><NumericField label="Fat" value={nutrients.fat} onChange={value => nutrient('fat', value)} required={false}/><NumericField label="Fibre" value={nutrients.fiber} onChange={value => nutrient('fiber', value)} required={false}/></div>
         <div className="cal-budget-preview" aria-live="polite"><span>Calculated energy</span><strong><output aria-label="Calculated energy">{hasNutrients ? number(calories, 1) : '—'}</output> kcal</strong><p>4 × protein + 4 × carbohydrate + 9 × fat</p></div>
         {food && <p className="cal-field-hint">Changes apply to future entries. Previously logged nutrition stays as recorded.</p>}

@@ -16,8 +16,8 @@ const PHOTO = {
 const PHOTOS = { product: PHOTO, nutrition: PHOTO };
 const DRAFT = {
   name: 'Beans', baseQuantity: 100, unit: 'g', state: 'As served',
-  protein: 5, carbs: 12, fat: 0, fiber: 4,
-  estimatedFields: ['fiber'], notes: ['Fibre is an estimate to review.'],
+  protein: 5, carbs: 12, fat: 0, fiber: null,
+  estimatedFields: [], notes: [],
 };
 
 function upload(body = JSON.stringify(PHOTOS), extraHeaders = {}) {

@@ -4,7 +4,7 @@ import { createClient } from '../../src/lib/calories/client.ts';
 
 const photo = { mimeType: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS4kAAAAASUVORK5CYII=' };
 const photos = { product: photo, nutrition: photo };
-const draft = { name: 'Oats', baseQuantity: 100, unit: 'g', state: 'As served', protein: 13, carbs: 60, fat: 7, fiber: 10, estimatedFields: ['fiber'], notes: ['Fibre is an AI estimate.'] };
+const draft = { name: 'Oats', baseQuantity: 100, unit: 'g', state: 'As served', protein: 13, carbs: 60, fat: 7, fiber: null, estimatedFields: [], notes: [] };
 function harness(handler) {
   const storage = () => { const values = new Map(); return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) }; };
   const calls = [];
