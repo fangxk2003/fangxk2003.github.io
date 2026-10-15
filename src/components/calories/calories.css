@@ -560,3 +560,71 @@
   .cal-garmin-times > div { gap: 13px; }
 }
 @media (prefers-reduced-motion: reduce) { .calorie-app *, .calorie-app *::before, .calorie-app *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
+
+.cal-food-editor-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.cal-photo-import { padding: 17px; border: 1px solid #dce5d0; border-radius: 12px; background: #f4f6ed; color: var(--cal-ink, #35452f); min-width: 0; }
+.cal-photo-heading { display: flex; align-items: flex-start; gap: 11px; }
+.cal-photo-icon { display: inline-flex; align-items: center; justify-content: center; width: 35px; height: 35px; flex: 0 0 35px; border-radius: 9px; background: #e7eddb; color: #536c45; }
+.cal-photo-heading h3 { font-size: 14px; line-height: 1.5; font-weight: 550; margin: 0; }
+.cal-photo-heading p, .cal-photo-privacy, .cal-photo-review > p, .cal-photo-notes { font-size: 12px; line-height: 1.7; color: #697564; margin: 4px 0 0; }
+.cal-photo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; margin-top: 16px; }
+.cal-photo-card { min-width: 0; padding: 11px; border: 1px solid #dfe6d5; background: #fcfdf8; border-radius: 9px; }
+.cal-form .cal-photo-slot-title { display: block; color: #4e6144; font-size: 12px; font-weight: 550; line-height: 1.5; margin-bottom: 9px; cursor: pointer; }
+.cal-photo-preview { height: 108px; border: 1px dashed #d3ddc5; border-radius: 6px; background: #f1f4e9; color: #718065; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.cal-photo-preview > span { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.cal-photo-preview small { font-size: 11px; line-height: 1.5; }
+.cal-photo-preview-filled { border-style: solid; }
+.cal-photo-preview img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.cal-photo-file-info { min-width: 0; min-height: 45px; margin-top: 9px; color: #697564; font-size: 11px; line-height: 1.6; }
+.cal-photo-file-info strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #506445; font-size: 11px; font-weight: 500; }
+.cal-photo-file-info > span { display: block; }
+.cal-photo-file-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 0 10px; margin-top: 1px; }
+.cal-form .cal-photo-choose { position: relative; display: inline-flex; justify-content: center; align-items: center; min-height: 44px; padding: 0 11px; border: 1px solid #d6dfca; border-radius: 7px; background: #f0f4e6; color: #4c6540; font-size: 11px; font-weight: 500; cursor: pointer; overflow: hidden; }
+.cal-form .cal-photo-choose input[type='file'] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; padding: 0; border: 0; cursor: pointer; font-size: 16px; }
+.cal-photo-choose:hover { background: #e8efdb; }
+.cal-photo-choose:focus-within { outline: 2px solid #6d8656; outline-offset: 3px; }
+.cal-photo-remove { min-height: 44px; padding: 0 2px; border: 0; background: transparent; color: #64745a; font-size: 11px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.cal-photo-remove:hover { color: #354d2b; }
+.cal-photo-format-hint { display: block; color: #697564; font-size: 11px; line-height: 1.6; margin-top: 4px; }
+.cal-photo-privacy { margin-top: 12px; }
+.cal-photo-actions { display: flex; align-items: center; gap: 15px; margin-top: 13px; }
+.cal-photo-actions .cal-photo-fill { background: #e4ecd7; color: #3e5931; border-color: #cfdbbe; min-height: 44px; }
+.cal-photo-actions .cal-photo-fill:hover:not(:disabled) { background: #dbe6cb; }
+.cal-photo-actions .cal-photo-fill:disabled { opacity: .5; cursor: default; }
+.cal-photo-status { color: #697564; font-size: 12px; line-height: 1.7; margin: 9px 0 0; }
+.cal-photo-status:empty { display: none; }
+.cal-photo-error { border: 1px solid #ead4c7; border-radius: 7px; padding: 10px 11px; background: #fcf0e8; color: #9a5545; font-size: 12px; line-height: 1.7; margin: 11px 0 0; overflow-wrap: anywhere; }
+.cal-photo-card-error { border-color: #e7cfc0; }
+.cal-photo-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #b9c7aa; border-right-color: #4f6c3f; border-radius: 50%; animation: cal-photo-spin .8s linear infinite; flex: 0 0 16px; }
+.cal-photo-review { margin-top: 17px; padding-top: 16px; border-top: 1px solid #dce5d0; }
+.cal-photo-review h4 { margin: 0; color: #445e37; font-size: 13px; font-weight: 550; line-height: 1.6; }
+.cal-photo-nutrients { margin: 12px 0 0; }
+.cal-photo-nutrients > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-top: 1px solid #e1e8d6; padding: 8px 0; font-size: 12px; }
+.cal-photo-nutrients dt { color: #56664c; }
+.cal-photo-nutrients dd { display: flex; align-items: baseline; justify-content: flex-end; flex-wrap: wrap; gap: 4px 12px; margin: 0; text-align: right; }
+.cal-photo-nutrients strong { font-size: 13px; font-weight: 500; color: #405b33; }
+.cal-photo-nutrients dd > span { min-width: 74px; color: #697564; font-size: 11px; }
+.cal-photo-nutrients .cal-photo-estimated dd > span { color: #8c6238; font-weight: 550; }
+.cal-photo-review > .cal-photo-estimate-note { background: #f8efdd; border: 1px solid #e8dbc1; border-radius: 7px; padding: 9px 11px; color: #80603e; margin-top: 7px; }
+.cal-photo-review > .cal-photo-missing { margin-top: 10px; }
+.cal-photo-missing strong { font-weight: 550; color: #54644a; }
+.cal-photo-notes { padding-left: 18px; margin-top: 9px; overflow-wrap: anywhere; }
+.cal-photo-notes li + li { margin-top: 4px; }
+.cal-photo-review > .cal-photo-review-reminder { margin-top: 11px; font-weight: 500; color: #586c4b; }
+@keyframes cal-photo-spin { to { transform: rotate(360deg); } }
+@media (max-width: 480px) {
+  .cal-photo-import { padding: 13px; }
+  .cal-photo-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .cal-photo-card { display: grid; grid-template-columns: 75px minmax(0, 1fr); align-items: start; gap: 0 11px; }
+  .cal-form .cal-photo-slot-title { grid-column: 1 / -1; margin-bottom: 8px; }
+  .cal-photo-preview { grid-column: 1; grid-row: 2 / 4; height: 83px; }
+  .cal-photo-preview small { font-size: 10px; text-align: center; }
+  .cal-photo-file-info { grid-column: 2; margin-top: 0; min-height: 32px; }
+  .cal-photo-file-actions { grid-column: 2; gap: 0 8px; }
+  .cal-form .cal-photo-choose { padding: 0 9px; }
+  .cal-photo-format-hint, .cal-photo-card > .cal-photo-error { grid-column: 1 / -1; }
+  .cal-photo-format-hint { margin-top: 7px; }
+  .cal-photo-nutrients dd { gap: 3px 8px; }
+  .cal-photo-nutrients dd > span { min-width: 70px; }
+}
+@media (prefers-reduced-motion: reduce) { .cal-photo-spinner { animation: none; } }

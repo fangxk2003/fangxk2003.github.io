@@ -91,6 +91,14 @@ The daily nutrient targets use the journal's food calorie budget (burned calorie
 
 This journal uses `4 × protein + 4 × carbohydrate + 9 × fat` kcal per reference portion. Fibre is tracked separately and excluded from the app’s energy calculation. New nutrition inputs start empty; any left blank are saved as zero. The food editor updates the calculated energy as you type; there is no energy input. Existing food references are recalculated for future logging, while historical entries retain their recorded nutrients and energy. Rounding is for display only.
 
+## Add a food from two photos
+
+In **Foods → Add food**, choose a product-name photo and a nutrition-table photo, then select **Fill from photos**. The form is filled for review; edit any field and choose **Save food** to add it to the library. Photos are resized and re-encoded locally before the explicit upload. They are processed transiently by the authenticated `calories-food-photos` Edge Function and Google Gemini; the app does not store them in the journal or a Storage bucket.
+
+The default reader is `gemini-3.5-flash-lite`. Missing nutrients may be estimated from model knowledge and are marked **AI-estimated**, including estimated zeros. No web search is performed. Unresolved values stay blank and must be completed explicitly before saving an imported food. The original suggestions remain visible while you edit the form. Carbohydrate is normalized to exclude fibre when the label explicitly uses US-style total carbohydrate; EU-style carbohydrate is left unchanged. Energy uses the existing local 4/4/9 calculation.
+
+The function source lives in `supabase/functions/calories-food-photos/`. Deploy it with JWT verification enabled and set **GEMINI_API_KEY** in the Supabase project's Edge Function Secrets. An optional **CALORIES_PHOTO_MODEL** secret selects another compatible Gemini model. The function checks the existing owner/session access RPC before any AI call, including the 30-day session limit. Keep the Gemini key server-side; it must never be put in browser code, GitHub, or a `PUBLIC_*` variable. Files are limited to two prepared images of 2 MiB each; the entire JSON request is limited to 6 MiB. Selecting a new photo or closing the dialog cancels the reader and ignores stale responses.
+
 ## Manual meal estimates
 
 Use **Log food → Manual estimate** for a restaurant meal or another meal without a food-library reference. Enter a description, the meal and date, and estimated protein, carbohydrate, fat and fibre in grams for the entire amount eaten. Nutrition fields start empty; blank values count as zero. Energy calculates automatically using the same 4/4/9 formula. The estimate contributes to daily totals and nutrient percentages, stays editable in the journal, and does not create a food-library item. JSON backups retain the manual estimate marker, and CSV exports identify the entry type.

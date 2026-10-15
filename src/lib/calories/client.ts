@@ -1,6 +1,7 @@
 import { emptyData, normalizeData, type TrackerData } from './model.ts';
 import { deployedConfiguration } from './config.ts';
 import { normalizeGarminSnapshot, type GarminSnapshot } from './garmin.ts';
+import { normalizeFoodPhotoDraft, normalizeFoodPhotoRequest, type FoodPhotoDraft, type FoodPhotoRequest } from './food-photos.ts';
 
 export interface Configuration { url: string; key: string; email?: string }
 interface Session { accessToken: string; refreshToken: string; userId: string; email: string; expiresAt: number; deadline: number; remember: boolean }
@@ -72,13 +73,19 @@ export function createClient(options: ClientOptions = {}) {
     storage.setItem(sessionKey(), JSON.stringify(session));
     (session.remember ? tab : local)?.removeItem(sessionKey());
   }
-  async function http(path: string, init: RequestInit = {}, token?: string): Promise<Response> {
+  async function http(path: string, init: RequestInit = {}, token?: string, timeoutMs = 20000): Promise<Response> {
     const headers = new Headers(init.headers);
     headers.set('apikey', config().key);
     if (token) headers.set('Authorization', `Bearer ${token}`);
     if (init.body) headers.set('Content-Type', 'application/json');
-    try { return await request(`${config().url}${path}`, { ...init, headers, cache: 'no-store', signal: AbortSignal.timeout(20000) }); }
-    catch { throw new Error('Cannot reach your storage. Check your connection and try again. Your changes have not been saved.'); }
+    const timeout = AbortSignal.timeout(timeoutMs);
+    const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+    try { return await request(`${config().url}${path}`, { ...init, headers, cache: 'no-store', signal }); }
+    catch {
+      if (init.signal?.aborted) throw new DOMException('Photo reading was cancelled.', 'AbortError');
+      if (path === '/functions/v1/calories-food-photos') throw new Error('The photo reader could not be reached or took too long. Try again or enter the values manually.');
+      throw new Error('Cannot reach your storage. Check your connection and try again. Your changes have not been saved.');
+    }
   }
   async function errorFor(response: Response): Promise<Error> {
     const body = await response.json().catch(() => ({}));
@@ -134,13 +141,13 @@ export function createClient(options: ClientOptions = {}) {
     if (!session) throw new Error('Sign in again.');
     return session;
   }
-  async function authenticated(path: string, init: RequestInit = {}): Promise<Response> {
+  async function authenticated(path: string, init: RequestInit = {}, timeoutMs = 20000): Promise<Response> {
     let current = await ensureSession();
-    let response = await http(path, init, current.accessToken);
+    let response = await http(path, init, current.accessToken, timeoutMs);
     if (response.status === 401) {
       await refresh(true);
       current = await ensureSession();
-      response = await http(path, init, current.accessToken);
+      response = await http(path, init, current.accessToken, timeoutMs);
     }
     return response;
   }
@@ -205,6 +212,18 @@ export function createClient(options: ClientOptions = {}) {
     async disconnectGarmin(): Promise<void> {
       const response = await authenticated('/rest/v1/rpc/calories_garmin_disconnect', { method: 'POST', body: '{}' });
       if (!response.ok) throw await errorFor(response);
+    },
+    async readFoodPhotos(input: FoodPhotoRequest, signal?: AbortSignal): Promise<FoodPhotoDraft> {
+      const photos = normalizeFoodPhotoRequest(input);
+      signal?.throwIfAborted();
+      const response = await authenticated('/functions/v1/calories-food-photos', { method: 'POST', body: JSON.stringify(photos), signal }, 80000);
+      signal?.throwIfAborted();
+      if (!response.ok) {
+        const failure = await response.json().catch(() => ({}));
+        const message = typeof failure.error === 'string' && failure.error.length <= 500 ? failure.error : 'The photos could not be read. Try again or enter the food manually.';
+        throw new Error(message);
+      }
+      return normalizeFoodPhotoDraft(await response.json());
     },
     async loadGarmin(): Promise<GarminSnapshot> {
       const current = await ensureSession();

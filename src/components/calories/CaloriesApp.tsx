@@ -5,6 +5,8 @@ import { effectiveBurned, emptyGarminSnapshot, type EffectiveBurned, type Garmin
 import { DAILY_PROTEIN_GRAMS, macroTargets, nutrientProgress } from '../../lib/calories/nutrition';
 import { adjustedBudget, calorieLedger, carryBefore, MAX_DAILY_DEFICIT } from '../../lib/calories/budget';
 import { sortFoodsByRecentUse } from '../../lib/calories/food-order';
+import { normalizeFoodPhotoDraft, PHOTO_NUTRIENTS, PHOTO_NUTRIENT_LABELS, type FoodPhotoDraft, type FoodPhotoRequest } from '../../lib/calories/food-photos';
+import FoodPhotoImport from './FoodPhotoImport';
 import './calories.css';
 
 type View = 'journal' | 'foods' | 'history';
@@ -488,7 +490,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
       </main>
 
       {modal && <Modal onClose={() => setModal(null)}>{modal.type === 'entry' ? <EntryEditor key={modal.entry?.id ?? modal.foodId ?? 'new-entry'} entry={modal.entry} initialFoodId={modal.foodId} foods={sortedFoods} date={date} onSave={saveEntry} onAddFood={() => setModal({ type: 'food', returnToLog: true })} onClose={() => setModal(null)}/>
-        : modal.type === 'food' ? <FoodEditor key={modal.food?.id ?? 'new-food'} food={modal.food} onSave={saveFood} onClose={() => setModal(null)}/>
+        : modal.type === 'food' ? <FoodEditor key={modal.food?.id ?? 'new-food'} food={modal.food} readPhotos={(input, signal) => client.readFoodPhotos(input, signal)} onSave={saveFood} onClose={() => setModal(null)}/>
         : modal.type === 'targets' ? <TargetsEditor date={date} currentDay={currentDay} settings={targets} garminDays={garmin.days} carryIn={carryIn} onSave={(settings, makeDefault) => { updateData(current => ({ ...current, days: { ...current.days, [date]: settings }, defaults: makeDefault ? { ...current.defaults, deficit: settings.deficit, protein: DAILY_PROTEIN_GRAMS } : current.defaults })); setModal(null); }} onClose={() => setModal(null)}/>
         : modal.type === 'garmin' ? <GarminConnection date={date} currentDay={currentDay} snapshot={garmin} loading={garminLoading || garminDisconnecting} disconnecting={garminDisconnecting} error={garminLoadError} onRefresh={() => void refreshGarmin()} onDisconnect={() => void disconnectGarmin()} onClose={() => setModal(null)}/>
         : <TransferDialog data={data} onImport={(next) => { updateData(() => next); setModal(null); }} onClose={() => setModal(null)}/>}</Modal>}
@@ -617,22 +619,53 @@ function EntryEditor({ entry, initialFoodId, foods, date, onSave, onAddFood, onC
   </>;
 }
 
-function FoodEditor({ food, onSave, onClose }: { food?: Food; onSave: (food: Food) => void; onClose: () => void }) {
+function FoodEditor({ food, readPhotos, onSave, onClose }: { food?: Food; readPhotos: (input: FoodPhotoRequest, signal: AbortSignal) => Promise<FoodPhotoDraft>; onSave: (food: Food) => void; onClose: () => void }) {
   const [name, setName] = useState(food?.name ?? '');
   const [baseQuantity, setBaseQuantity] = useState(String(food?.baseQuantity ?? 100));
-  const [unit, setUnit] = useState<Food['unit']>(food?.unit ?? 'g');
+  const [unit, setUnit] = useState<Food['unit'] | ''>(food?.unit ?? 'g');
   const [state, setState] = useState<Food['state']>(food?.state ?? 'As served');
   const [nutrients, setNutrients] = useState({ carbs: String(food?.carbs ?? ''), protein: String(food?.protein ?? ''), fat: String(food?.fat ?? ''), fiber: String(food?.fiber ?? '') });
   const hasNutrients = Object.values(nutrients).some(value => value.trim() !== '');
   const calories = energyFromMacros({ carbs: Math.max(0, Number(nutrients.carbs) || 0), protein: Math.max(0, Number(nutrients.protein) || 0), fat: Math.max(0, Number(nutrients.fat) || 0), fiber: Math.max(0, Number(nutrients.fiber) || 0) });
   const [error, setError] = useState('');
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoDraft, setPhotoDraft] = useState<FoodPhotoDraft | null>(null);
+  function applyPhotos(raw: FoodPhotoDraft) {
+    const draft = normalizeFoodPhotoDraft(raw);
+    setName(draft.name ?? ''); setBaseQuantity(draft.baseQuantity === null ? '' : String(draft.baseQuantity));
+    setUnit(draft.unit ?? ''); setState(draft.state ?? 'As served');
+    setNutrients({ protein: draft.protein === null ? '' : String(draft.protein), carbs: draft.carbs === null ? '' : String(draft.carbs), fat: draft.fat === null ? '' : String(draft.fat), fiber: draft.fiber === null ? '' : String(draft.fiber) });
+    setPhotoDraft(draft); setError('');
+  }
   function nutrient(key: keyof typeof nutrients, value: string) { setNutrients(current => ({ ...current, [key]: value })); }
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (!name.trim() || !Number.isFinite(Number(baseQuantity)) || Number(baseQuantity) <= 0 || !Number.isFinite(calories) || calories > 1e8 || Object.values(nutrients).some(value => !Number.isFinite(Number(value)) || Number(value) < 0)) { setError('Add a food name, a base quantity greater than zero, and valid nutrition values.'); return; }
+    if (photoBusy) return;
+    const missing = photoDraft ? PHOTO_NUTRIENTS.filter(field => !nutrients[field].trim()) : [];
+    if (missing.length) { setError(`Complete ${missing.map(field => PHOTO_NUTRIENT_LABELS[field].toLowerCase()).join(', ')} before saving this imported food. Enter 0 only if the food has none.`); return; }
+    if (!name.trim() || !unit || !Number.isFinite(Number(baseQuantity)) || Number(baseQuantity) <= 0 || !Number.isFinite(calories) || calories > 1e8 || Object.values(nutrients).some(value => !Number.isFinite(Number(value)) || Number(value) < 0)) { setError('Add a food name, a label quantity greater than zero, a unit, and valid nutrition values.'); return; }
     onSave({ id: food?.id ?? newId(), name: name.trim(), baseQuantity: Number(baseQuantity), unit, state, carbs: Number(nutrients.carbs), protein: Number(nutrients.protein), fat: Number(nutrients.fat), fiber: Number(nutrients.fiber), calories });
   }
-  return <><ModalHeader title={food ? 'Edit a favourite' : 'Add an everyday food'} eyebrow="FOOD LIBRARY" onClose={onClose}/><form className="cal-form" onSubmit={submit}><label>Food name<input value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Greek yoghurt" required maxLength={160} autoFocus/></label><div className="cal-form-grid cal-form-grid-three"><NumericField label="Label quantity" value={baseQuantity} onChange={setBaseQuantity} unit="" min={0.001}/><label>Unit<select value={unit} onChange={event => { const nextUnit = event.target.value as Food['unit']; setUnit(nextUnit); if (!food) setBaseQuantity(nextUnit === 'piece' ? '1' : '100'); }}><option value="g">grams (g)</option><option value="ml">millilitres (ml)</option><option value="piece">piece</option></select></label><label>State<select value={state} onChange={event => setState(event.target.value as Food['state'])}><option>As served</option><option>Raw</option><option>Cooked</option></select></label></div><div className="cal-form-section-label"><strong>Nutrition per {baseQuantity || '—'} {unitLabel(unit, Number(baseQuantity))}</strong><p>Enter the label’s values in grams. Leave blank for zero.</p></div><div className="cal-form-grid"><NumericField label="Protein" value={nutrients.protein} onChange={value => nutrient('protein', value)} required={false}/><NumericField label="Carbohydrate" value={nutrients.carbs} onChange={value => nutrient('carbs', value)} required={false}/><NumericField label="Fat" value={nutrients.fat} onChange={value => nutrient('fat', value)} required={false}/><NumericField label="Fibre" value={nutrients.fiber} onChange={value => nutrient('fiber', value)} required={false}/></div><div className="cal-budget-preview" aria-live="polite"><span>Calculated energy</span><strong><output aria-label="Calculated energy">{hasNutrients ? number(calories, 1) : '—'}</output> kcal</strong><p>4 × protein + 4 × carbohydrate + 9 × fat</p></div>{food && <p className="cal-field-hint">Changes apply to future entries. Previously logged nutrition stays as recorded.</p>}{error && <p className="cal-form-error" role="alert">{error}</p>}<div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary">{food ? 'Save changes' : 'Save food'}<Icon name="check" size={17}/></button></div></form></>;
+  return <>
+    <ModalHeader title={food ? 'Edit a favourite' : 'Add an everyday food'} eyebrow="FOOD LIBRARY" onClose={onClose}/>
+    <form className="cal-form" onSubmit={submit}>
+      {!food && <FoodPhotoImport readPhotos={readPhotos} onDraft={applyPhotos} onBusyChange={setPhotoBusy}/>}
+      <fieldset className="cal-form cal-food-editor-fields" disabled={photoBusy}>
+        <label>Food name<input value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Greek yoghurt" required maxLength={160} autoFocus/></label>
+        <div className="cal-form-grid cal-form-grid-three">
+          <NumericField label="Label quantity" value={baseQuantity} onChange={setBaseQuantity} unit="" min={0.001}/>
+          <label>Unit<select value={unit} onChange={event => { const nextUnit = event.target.value as Food['unit']; setUnit(nextUnit); if (!food && !photoDraft) setBaseQuantity(nextUnit === 'piece' ? '1' : '100'); }} required><option value="" disabled>Choose unit</option><option value="g">grams (g)</option><option value="ml">millilitres (ml)</option><option value="piece">piece</option></select></label>
+          <label>State<select value={state} onChange={event => setState(event.target.value as Food['state'])}><option>As served</option><option>Raw</option><option>Cooked</option></select></label>
+        </div>
+        <div className="cal-form-section-label"><strong>Nutrition per {baseQuantity || '—'} {unitLabel(unit, Number(baseQuantity))}</strong><p>{photoDraft ? 'Check every value before saving. Complete any empty fields; enter 0 only if the food has none.' : 'Enter the label’s values in grams. Leave blank for zero.'}</p></div>
+        <div className="cal-form-grid"><NumericField label="Protein" value={nutrients.protein} onChange={value => nutrient('protein', value)} required={false}/><NumericField label="Carbohydrate" value={nutrients.carbs} onChange={value => nutrient('carbs', value)} required={false}/><NumericField label="Fat" value={nutrients.fat} onChange={value => nutrient('fat', value)} required={false}/><NumericField label="Fibre" value={nutrients.fiber} onChange={value => nutrient('fiber', value)} required={false}/></div>
+        <div className="cal-budget-preview" aria-live="polite"><span>Calculated energy</span><strong><output aria-label="Calculated energy">{hasNutrients ? number(calories, 1) : '—'}</output> kcal</strong><p>4 × protein + 4 × carbohydrate + 9 × fat</p></div>
+        {food && <p className="cal-field-hint">Changes apply to future entries. Previously logged nutrition stays as recorded.</p>}
+      </fieldset>
+      {error && <p className="cal-form-error" role="alert">{error}</p>}
+      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary" disabled={photoBusy}>{food ? 'Save changes' : 'Save food'}<Icon name="check" size={17}/></button></div>
+    </form>
+  </>;
 }
 
 function TargetsEditor({ date, currentDay, settings, garminDays, carryIn, onSave, onClose }: { date: string; currentDay: string; settings: DaySettings; garminDays: readonly GarminDay[]; carryIn: number; onSave: (settings: DaySettings, makeDefault: boolean) => void; onClose: () => void }) {
