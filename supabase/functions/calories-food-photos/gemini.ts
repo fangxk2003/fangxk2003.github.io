@@ -38,7 +38,7 @@ Return protein, carbohydrate, TOTAL fat (not saturated fat), and dietary fibre i
 
 Never estimate, guess or fill a missing nutrient from food identity, ingredients, model knowledge, common values or energy calculations. This remains forbidden even for a recognizable product or a seemingly obvious zero such as fibre in meat. Read printed nutrients only. Missing, unprinted or unreadable nutrients stay null. Never estimate the product name, label quantity, unit or cooking state.
 
-For carbohydrate, return the amount AS PRINTED before any fibre subtraction. Set carbohydrateConvention to excludes_fiber for EU-style carbohydrate values that already exclude dietary fibre, includes_fiber for US-style Total Carbohydrate that includes fibre, or unknown when the convention is unclear. DO NOT subtract fibre yourself: the application performs this deterministically only when both values were read from the label. EU carbohydrate includes polyols; do not subtract polyols or sugars. Do not infer missing nutrients from printed calories or alter them to match energy. The application calculates its own energy separately.
+For carbohydrate, return the amount AS PRINTED before any fibre subtraction. Copy the carbohydrate row heading exactly into carbohydrateLabel, without the amount, or null if unreadable. Nordic headings Hiilihydraatteja, Hiilihydraatit, Hiilihydraattia, Kolhydrat, Kolhydrater, Kulhydrat and Kulhydrater identify EU-style carbohydrate excluding fibre. These headings do not need to say "excluding fibre". Readable EU carbohydrate is independent of the fibre row: missing fibre MUST NOT make a printed carbohydrate value null. For example, "Hiilihydraatteja/Kolhydrat/Kulhydrat 14,0 g" per 100 g means carbs 14 and excludes_fiber, even when fibre is absent. Identifying the printed label convention is not estimating a nutrient. Set carbohydrateConvention to excludes_fiber for EU-style carbohydrate values that already exclude dietary fibre, includes_fiber for US-style Total Carbohydrate that includes fibre, or unknown when the convention is unclear. DO NOT subtract fibre yourself: the application performs this deterministically only when both values were read from the label. EU carbohydrate includes polyols; do not subtract polyols or sugars. Do not infer missing nutrients from printed calories or alter them to match energy. The application calculates its own energy separately.
 
 estimatedFields is a compatibility field and MUST ALWAYS be the empty array []. No estimates are allowed. notes contains at most 10 short, plain-text review notes of at most 600 characters each. Explain unclear basis, unreadable values or possible product mismatch. Do not suggest values for missing nutrients. Do not output URLs, citations, HTML, instructions, markdown fences or extra fields.`;
 
@@ -58,9 +58,10 @@ const RESPONSE_SCHEMA = {
     fiber: nutrientSchema('Printed grams of dietary fibre per the chosen basis; absent means null, not zero. Never estimate.'),
     estimatedFields: { type: 'array', maxItems: 0, description: 'Always empty: no AI estimates are allowed.', items: { type: 'string', enum: [...PHOTO_NUTRIENTS] } },
     notes: { type: 'array', maxItems: 10, items: { type: 'string', description: 'Short plain-text review note, maximum 600 characters. No URLs.' } },
+    carbohydrateLabel: nullable({ type: 'string', description: 'Exact printed carbohydrate row heading only, maximum 200 characters; null if unreadable. For example Hiilihydraatteja/Kolhydrat/Kulhydrat.' }),
     carbohydrateConvention: { type: 'string', enum: ['excludes_fiber', 'includes_fiber', 'unknown'] },
   },
-  required: ['name', 'baseQuantity', 'unit', 'state', 'protein', 'carbs', 'fat', 'fiber', 'estimatedFields', 'notes', 'carbohydrateConvention'],
+  required: ['name', 'baseQuantity', 'unit', 'state', 'protein', 'carbs', 'fat', 'fiber', 'estimatedFields', 'notes', 'carbohydrateLabel', 'carbohydrateConvention'],
 };
 const RESPONSE_FIELDS = new Set(RESPONSE_SCHEMA.required);
 
@@ -118,6 +119,17 @@ async function boundedResponse(response: Response): Promise<unknown> {
   }
 }
 
+/** Use observed row wording, never the product identity, to resolve Nordic labels. */
+function conventionFromHeading(heading: string | null): 'includes_fiber' | 'excludes_fiber' | null {
+  if (!heading) return null;
+  const text = heading.normalize('NFKC').toLowerCase().trim();
+  // Explicit total-carbohydrate wording wins on translated US-style labels.
+  if (/\btotal\s+carbohydrates?\b/.test(text)) return 'includes_fiber';
+  const rows = text.split(/[\/|;\n]+/).map(row => row.trim());
+  const nordicHeading = /^(?:hiilihydraatteja|hiilihydraatit|hiilihydraattia|kolhydrat(?:er)?|kulhydrat(?:er)?)$/;
+  return rows.every(row => nordicHeading.test(row)) ? 'excludes_fiber' : null;
+}
+
 /** Provider-only convention metadata is removed from the public editor draft. */
 function parseDraft(payload: unknown): FoodPhotoDraft {
   const response = record(payload);
@@ -138,8 +150,9 @@ function parseDraft(payload: unknown): FoodPhotoDraft {
   let raw: Record<string, unknown>;
   try { raw = record(JSON.parse(text)); } catch { throw invalidResponse(); }
   if (Object.keys(raw).some(key => !RESPONSE_FIELDS.has(key)) || RESPONSE_SCHEMA.required.some(key => !(key in raw))) throw invalidResponse();
-  const convention = raw.carbohydrateConvention;
-  if (!['excludes_fiber', 'includes_fiber', 'unknown'].includes(String(convention))) throw invalidResponse();
+  if (!['excludes_fiber', 'includes_fiber', 'unknown'].includes(String(raw.carbohydrateConvention))) throw invalidResponse();
+  if (raw.carbohydrateLabel !== null && (typeof raw.carbohydrateLabel !== 'string' || !raw.carbohydrateLabel.trim() || raw.carbohydrateLabel.length > 200)) throw invalidResponse();
+  const convention = conventionFromHeading(raw.carbohydrateLabel as string | null) ?? raw.carbohydrateConvention;
   if (!Array.isArray(raw.estimatedFields) || raw.estimatedFields.length > 4 || raw.estimatedFields.some(field => !PHOTO_NUTRIENTS.includes(field)) || new Set(raw.estimatedFields).size !== raw.estimatedFields.length) throw invalidResponse();
   // Even if a model disobeys the empty-array schema, no declared estimate is
   // allowed to reach the form. Strip it before the shared legacy-wire validator.

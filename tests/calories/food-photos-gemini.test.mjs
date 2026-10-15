@@ -13,7 +13,7 @@ const photos = {
 const draft = (overrides = {}) => ({
   name: 'Example wholegrain oats', baseQuantity: 100, unit: 'g', state: 'As served',
   protein: 12.5, carbs: 60, fat: 7, fiber: 10, estimatedFields: [], notes: [],
-  carbohydrateConvention: 'excludes_fiber', ...overrides,
+  carbohydrateLabel: null, carbohydrateConvention: 'excludes_fiber', ...overrides,
 });
 const wire = (result, candidate = {}) => ({
   candidates: [{ finishReason: 'STOP', content: { role: 'model', parts: [{ text: JSON.stringify(result) }] }, ...candidate }],
@@ -64,6 +64,7 @@ test('adapter makes one structured inline-image request to the fixed Google endp
   assert.equal(calls, 1);
   assert.equal(output.name, 'Example wholegrain oats');
   assert.equal(output.carbohydrateConvention, undefined);
+  assert.equal(output.carbohydrateLabel, undefined);
   assert.deepEqual(Object.keys(output).sort(), ['name', 'baseQuantity', 'unit', 'state', 'protein', 'carbs', 'fat', 'fiber', 'estimatedFields', 'notes'].sort());
 });
 
@@ -81,6 +82,53 @@ test('EU carbohydrate stays unchanged while a disallowed fibre estimate is disca
   assert.equal(output.fiber, null);
   assert.deepEqual(output.estimatedFields, []);
   assert.match(output.notes.join(' '), /AI-estimated nutrient values were ignored/);
+});
+
+test('printed Nordic chickpea carbohydrate survives absent fibre and uncertain convention metadata', async () => {
+  for (const carbohydrateLabel of ['Hiilihydraatteja/Kolhydrat/Kulhydrat', 'Hiilihydraatit', 'Hiilihydraattia', 'Kolhydrat', 'Kolhydrater', 'Kulhydrat', 'Kulhydrater', ' Kolhydrater / Kulhydrat ']) {
+    for (const carbohydrateConvention of ['unknown', 'includes_fiber', 'excludes_fiber']) {
+      const output = await extractFoodPhotos(photos, options(draft({
+        name: 'Chickpeas', protein: 6.9, fat: 2.5, carbs: 14, fiber: null,
+        carbohydrateLabel, carbohydrateConvention,
+      })));
+      assert.equal(output.carbs, 14);
+      assert.equal(output.fiber, null);
+      assert.deepEqual(output.estimatedFields, []);
+      assert.equal(output.carbohydrateLabel, undefined);
+    }
+  }
+});
+
+test('printed Nordic carbohydrate zero is preserved with absent fibre', async () => {
+  const output = await extractFoodPhotos(photos, options(draft({
+    carbohydrateLabel: 'Ｋｏｌｈｙｄｒａｔ', carbohydrateConvention: 'unknown', carbs: 0, fiber: null,
+  })));
+  assert.equal(output.carbs, 0);
+  assert.equal(output.fiber, null);
+});
+
+test('Nordic product names cannot establish the label convention or invent unreadable carbs', async () => {
+  const ambiguous = await extractFoodPhotos(photos, options(draft({
+    name: 'Kolhydrat', carbohydrateLabel: null, carbohydrateConvention: 'unknown', carbs: 14, fiber: null,
+  })));
+  assert.equal(ambiguous.carbs, null);
+  const unreadable = await extractFoodPhotos(photos, options(draft({
+    carbohydrateLabel: 'Kolhydrat', carbohydrateConvention: 'unknown', carbs: null, fiber: null,
+  })));
+  assert.equal(unreadable.carbs, null);
+});
+
+test('explicit US total carbohydrate takes precedence over Nordic translations', async () => {
+  for (const carbohydrateLabel of ['Total Carbohydrate', 'Kolhydrater / Total Carbohydrate']) {
+    const missingFiber = await extractFoodPhotos(photos, options(draft({
+      carbohydrateLabel, carbohydrateConvention: 'unknown', carbs: 14, fiber: null,
+    })));
+    assert.equal(missingFiber.carbs, null);
+    const observedFiber = await extractFoodPhotos(photos, options(draft({
+      carbohydrateLabel, carbohydrateConvention: 'excludes_fiber', carbs: 14, fiber: 3,
+    })));
+    assert.equal(observedFiber.carbs, 11);
+  }
 });
 
 test('US total carbohydrate is converted once using observed fibre without inventing an AI estimate', async () => {
@@ -158,6 +206,7 @@ test('strict output validation rejects coercion, invalid enums, extra fields and
     { name: 'x'.repeat(161) }, { notes: ['x'.repeat(601)] },
     { estimatedFields: ['fiber', 'fiber'] }, { estimatedFields: ['salt'] },
     { calories: 999 }, { carbohydrateConvention: 'invented' },
+    { carbohydrateLabel: 14 }, { carbohydrateLabel: '' }, { carbohydrateLabel: 'x'.repeat(201) },
   ]) await assert.rejects(extractFoodPhotos(photos, options(draft(override))), safeError('invalid_provider_response', 422));
   const missingMetadata = draft();
   delete missingMetadata.carbohydrateConvention;
