@@ -2,6 +2,7 @@ import { emptyData, normalizeData, type TrackerData } from './model.ts';
 import { deployedConfiguration } from './config.ts';
 import { normalizeGarminSnapshot, type GarminSnapshot } from './garmin.ts';
 import { normalizeFoodPhotoDraft, normalizeFoodPhotoRequest, type FoodPhotoDraft, type FoodPhotoRequest } from './food-photos.ts';
+import { normalizeMealPhotoDraft, normalizeMealPhotoRequest, type MealPhotoDraft, type MealPhotoRequest } from './meal-photos.ts';
 
 export interface Configuration { url: string; key: string; email?: string }
 interface Session { accessToken: string; refreshToken: string; userId: string; email: string; expiresAt: number; deadline: number; remember: boolean }
@@ -224,6 +225,18 @@ export function createClient(options: ClientOptions = {}) {
         throw new Error(message);
       }
       return normalizeFoodPhotoDraft(await response.json());
+    },
+    async estimateMealPhoto(input: MealPhotoRequest, signal?: AbortSignal): Promise<MealPhotoDraft> {
+      const meal = normalizeMealPhotoRequest(input);
+      signal?.throwIfAborted();
+      const response = await authenticated('/functions/v1/calories-food-photos', { method: 'POST', body: JSON.stringify({ mode: 'meal', ...meal }), signal }, 80000);
+      signal?.throwIfAborted();
+      if (!response.ok) {
+        const failure = await response.json().catch(() => ({}));
+        const message = typeof failure.error === 'string' && failure.error.length <= 500 ? failure.error : 'The meal could not be estimated. Try another photo or enter the values manually.';
+        throw new Error(message);
+      }
+      return normalizeMealPhotoDraft(await response.json());
     },
     async loadGarmin(): Promise<GarminSnapshot> {
       const current = await ensureSession();

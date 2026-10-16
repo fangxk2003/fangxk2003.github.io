@@ -1,0 +1,23 @@
+.cal-meal-photo { min-width: 0; padding: 10px; border: 1px solid #dce5d0; border-radius: 10px; background: #f4f6ed; }
+.cal-meal-photo-row { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; }
+.cal-form .cal-meal-photo-choose { position: relative; display: flex; flex: 1 1 78px; flex-direction: row; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 44px; padding: 7px 9px; margin: 0; border: 1px solid #d6dfca; border-radius: 7px; background: #fcfdf8; color: #4c6540; font-size: 12px; font-weight: 500; line-height: 1.35; overflow: hidden; cursor: pointer; }
+.cal-meal-photo-choose > img, .cal-meal-photo-choose > svg { width: 22px; height: 22px; flex: 0 0 22px; object-fit: contain; border-radius: 3px; }
+.cal-meal-photo-choose > span { min-width: 0; }
+.cal-form .cal-meal-photo-choose input[type='file'] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; padding: 0; border: 0; cursor: pointer; font-size: 16px; }
+.cal-meal-photo-choose:hover { background: #e8efdb; }
+.cal-meal-photo-choose:focus-within { outline: 2px solid #6d8656; outline-offset: 3px; }
+.cal-meal-photo-remove { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; min-width: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; color: #64745a; font-size: 22px; cursor: pointer; }
+.cal-meal-photo-remove:hover { color: #354d2b; }
+.cal-meal-photo-row .cal-meal-photo-estimate { flex: 0 0 auto; gap: 7px; min-height: 44px; padding-inline: 11px; font-size: 12px; background: #e4ecd7; color: #3e5931; border-color: #cfdbbe; }
+.cal-meal-photo-row .cal-meal-photo-estimate:hover:not(:disabled) { background: #dbe6cb; }
+.cal-meal-photo-row .cal-meal-photo-estimate:disabled { opacity: .5; cursor: default; }
+.cal-meal-photo-cancel { min-height: 44px; padding: 0 4px; font-size: 12px; }
+.cal-meal-photo-status { color: #697564; font-size: 12px; line-height: 1.7; margin: 8px 0 0; }
+.cal-meal-photo-status:empty { display: none; }
+.cal-meal-photo-error { border: 1px solid #ead4c7; border-radius: 7px; padding: 8px 10px; background: #fcf0e8; color: #9a5545; font-size: 12px; line-height: 1.7; margin: 9px 0 0; overflow-wrap: anywhere; }
+.cal-meal-photo-notes { padding: 0 0 0 17px; margin: 5px 0 0; font-size: 11px; line-height: 1.7; color: #697564; overflow-wrap: anywhere; }
+.cal-meal-photo-notes li + li { margin-top: 3px; }
+.cal-meal-photo-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #b9c7aa; border-right-color: #4f6c3f; border-radius: 50%; animation: cal-meal-photo-spin .8s linear infinite; flex: 0 0 16px; }
+@keyframes cal-meal-photo-spin { to { transform: rotate(360deg); } }
+@media (max-width: 480px) { .cal-form .cal-meal-photo-choose { padding-inline: 7px; font-size: 11px; } .cal-meal-photo-row .cal-meal-photo-estimate { padding-inline: 9px; font-size: 11px; } }
+@media (prefers-reduced-motion: reduce) { .cal-meal-photo-spinner { animation: none; } }

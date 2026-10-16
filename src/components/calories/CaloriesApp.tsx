@@ -7,6 +7,8 @@ import { adjustedBudget, calorieLedger, carryBefore, MAX_DAILY_DEFICIT } from '.
 import { sortFoodsByRecentUse } from '../../lib/calories/food-order';
 import { normalizeFoodPhotoDraft, type FoodPhotoDraft, type FoodPhotoRequest } from '../../lib/calories/food-photos';
 import FoodPhotoImport from './FoodPhotoImport';
+import MealPhotoImport from './MealPhotoImport';
+import { normalizeMealPhotoDraft, type MealPhotoDraft, type MealPhotoRequest } from '../../lib/calories/meal-photos';
 import { FoodBankView, FoodBankEditor, FoodBankConsume } from './FoodBank';
 import { consumeFoodBankPortion } from '../../lib/calories/food-bank';
 import './calories.css';
@@ -510,7 +512,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
         <footer className="cal-footer"><span>A little more aware, every day.</span><span>Personal journal · <a href="/">fangxk2003</a></span></footer>
       </main>
 
-      {modal && <Modal onClose={() => setModal(null)}>{modal.type === 'entry' ? <EntryEditor key={modal.entry?.id ?? modal.foodId ?? 'new-entry'} entry={modal.entry} initialFoodId={modal.foodId} foods={sortedFoods} date={date} onSave={saveEntry} onAddFood={() => setModal({ type: 'food', returnToLog: true })} onFoodBank={openFoodBank} bankCount={data.foodBank.length} onClose={() => setModal(null)}/>
+      {modal && <Modal onClose={() => setModal(null)}>{modal.type === 'entry' ? <EntryEditor key={modal.entry?.id ?? modal.foodId ?? 'new-entry'} entry={modal.entry} initialFoodId={modal.foodId} foods={sortedFoods} date={date} onSave={saveEntry} readMealPhoto={(input, signal) => client.estimateMealPhoto(input, signal)} onAddFood={() => setModal({ type: 'food', returnToLog: true })} onFoodBank={openFoodBank} bankCount={data.foodBank.length} onClose={() => setModal(null)}/>
         : modal.type === 'food' ? <FoodEditor key={modal.food?.id ?? 'new-food'} food={modal.food} readPhotos={(input, signal) => client.readFoodPhotos(input, signal)} onSave={saveFood} onClose={() => setModal(null)}/>
         : modal.type === 'bank-prepare' ? <FoodBankEditor foods={sortedFoods} onSave={saveBankPortions} onClose={() => setModal(null)}/>
         : modal.type === 'bank-consume' ? <FoodBankConsume portion={modal.portion} date={date} onSave={(entryDate, meal) => eatBankPortion(modal.portion.id, entryDate, meal)} onClose={() => setModal(null)}/>
@@ -565,7 +567,7 @@ function NumericField({ label, value, onChange, unit = 'g', min = 0, required = 
   return <label>{label}<span className="cal-unit-input"><input type="number" inputMode="decimal" value={value} onChange={event => onChange(event.target.value)} min={min} max={100000000} step="any" required={required} aria-describedby={describedBy}/><span>{unit}</span></span></label>;
 }
 
-function EntryEditor({ entry, initialFoodId, foods, date, onSave, onAddFood, onFoodBank, bankCount, onClose }: { entry?: Entry; initialFoodId?: string; foods: Food[]; date: string; onSave: (entry: Entry) => void; onAddFood: () => void; onFoodBank: () => void; bankCount: number; onClose: () => void }) {
+function EntryEditor({ entry, initialFoodId, foods, date, onSave, readMealPhoto, onAddFood, onFoodBank, bankCount, onClose }: { entry?: Entry; initialFoodId?: string; foods: Food[]; date: string; onSave: (entry: Entry) => void; readMealPhoto: (input: MealPhotoRequest, signal: AbortSignal) => Promise<MealPhotoDraft>; onAddFood: () => void; onFoodBank: () => void; bankCount: number; onClose: () => void }) {
   const manualEditing = entry?.source === 'manual' || Boolean(entry && entry.foodId === `manual:${entry.id}`);
   const [mode, setMode] = useState<'library' | 'manual'>(entry ? manualEditing ? 'manual' : 'library' : foods.length ? 'library' : 'manual');
   const initialFood = foods.find(food => food.id === (manualEditing ? initialFoodId : entry?.foodId ?? initialFoodId)) ?? foods[0];
@@ -573,6 +575,7 @@ function EntryEditor({ entry, initialFoodId, foods, date, onSave, onAddFood, onF
   const [foodFilter, setFoodFilter] = useState('');
   const [quantity, setQuantity] = useState(String(!manualEditing && entry ? entry.quantity : initialFood?.baseQuantity ?? 100));
   const [manualName, setManualName] = useState(manualEditing ? entry?.foodName ?? '' : '');
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [manualNutrients, setManualNutrients] = useState({ protein: manualEditing ? String(entry?.protein ?? '') : '', carbs: manualEditing ? String(entry?.carbs ?? '') : '', fat: manualEditing ? String(entry?.fat ?? '') : '', fiber: manualEditing ? String(entry?.fiber ?? '') : '' });
   const standardMeals = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
   const [mealChoice, setMealChoice] = useState(entry ? (standardMeals.includes(entry.meal) ? entry.meal : 'Custom') : 'Breakfast');
@@ -604,9 +607,19 @@ function EntryEditor({ entry, initialFoodId, foods, date, onSave, onAddFood, onF
     }
     setMode(next); setError('');
   }
+  function applyMealPhoto(raw: MealPhotoDraft) {
+    const draft = normalizeMealPhotoDraft(raw);
+    if (draft.name !== null) setManualName(draft.name);
+    setManualNutrients({
+      protein: draft.protein === null ? '' : String(draft.protein), carbs: draft.carbs === null ? '' : String(draft.carbs),
+      fat: draft.fat === null ? '' : String(draft.fat), fiber: draft.fiber === null ? '' : String(draft.fiber),
+    });
+    setError('');
+  }
   function changeManualNutrient(key: keyof typeof manualNutrients, value: string) { setManualNutrients(current => ({ ...current, [key]: value })); setError(''); }
   function submit(event: FormEvent) {
     event.preventDefault();
+    if (photoBusy) return;
     const meal = mealChoice === 'Custom' ? customMeal.trim() : mealChoice;
     if (!meal) { setError('Add a meal name or number.'); return; }
     if (mode === 'manual') {
@@ -624,6 +637,8 @@ function EntryEditor({ entry, initialFoodId, foods, date, onSave, onAddFood, onF
     <ModalHeader title={entry ? 'Edit your entry' : 'What’s on the menu?'} eyebrow={entry ? 'DAILY JOURNAL' : 'LOG A FOOD'} onClose={onClose}/>
     <form className="cal-form" onSubmit={submit}>
       <div className={`cal-entry-mode-switch${!entry && bankCount ? ' cal-entry-mode-with-bank' : ''}`} role="group" aria-label="Entry method"><button type="button" className={mode === 'library' ? 'is-active' : ''} aria-pressed={mode === 'library'} onClick={() => changeMode('library')}>Food library</button><button type="button" className={mode === 'manual' ? 'is-active' : ''} aria-pressed={mode === 'manual'} onClick={() => changeMode('manual')}>Manual estimate</button>{!entry && bankCount > 0 && <button type="button" onClick={onFoodBank}>Food bank ({bankCount})</button>}</div>
+      {mode === 'manual' && <MealPhotoImport readPhoto={readMealPhoto} description={manualName} onDraft={applyMealPhoto} onBusyChange={setPhotoBusy}/>}
+      <fieldset className="cal-form cal-food-editor-fields" disabled={photoBusy}>
       {mode === 'library' ? <>
         <div className="cal-food-picker" role="group" aria-labelledby="cal-entry-food-label"><label id="cal-entry-food-label" htmlFor="cal-entry-food-filter">Food</label><div className="cal-food-picker-controls"><input id="cal-entry-food-filter" type="text" aria-label="Filter foods" aria-describedby="cal-entry-food-matches" value={foodFilter} onChange={event => filterFoods(event.target.value)} placeholder="Type part of a food name" autoComplete="off" autoCapitalize="none" spellCheck={false} autoFocus/><select aria-label="Food" aria-describedby="cal-entry-food-matches" value={foodId} onChange={event => { const food = filteredFoods.find(item => item.id === event.target.value); setFoodId(food?.id ?? ''); if (food) setQuantity(String(food.baseQuantity)); setError(''); }} required disabled={filteredFoods.length === 0}>{filteredFoods.length === 0 && <option value="" disabled>No matching foods</option>}{filteredFoods.map(food => <option key={food.id} value={food.id}>{food.name}{food.id === savedFood?.id ? ' (saved entry)' : ''} · {food.state}</option>)}</select></div><small className="cal-field-hint" id="cal-entry-food-matches" role="status">{filteredFoods.length === 0 ? foods.length === 0 && !savedFood ? 'Your library is empty. Add a food below or choose Manual estimate.' : 'No matching foods. Try another name or add a food below.' : foodFilter.trim() ? `${filteredFoods.length} matching ${filteredFoods.length === 1 ? 'food' : 'foods'}` : 'Type to filter the food list.'}</small></div>
         <button className="cal-text-button cal-add-food-inline" type="button" onClick={onAddFood}><Icon name="plus" size={15}/>Add a new food to your library</button>
@@ -636,8 +651,9 @@ function EntryEditor({ entry, initialFoodId, foods, date, onSave, onAddFood, onF
       {mealChoice === 'Custom' && <label>Meal name or number<input type="text" value={customMeal} onChange={event => setCustomMeal(event.target.value)} placeholder="e.g. Meal 1, late lunch" required maxLength={80}/></label>}
       {mode === 'library' && <label>Date<input type="date" value={entryDate} onChange={event => setEntryDate(event.target.value)} required/></label>}
       {mode === 'manual' ? <div className="cal-budget-preview" aria-live="polite"><span>Estimated energy for this meal</span><strong><output aria-label="Estimated meal energy">{number(manualEnergy, 1)}</output> kcal</strong><p>4 × protein + 4 × carbohydrate + 9 × fat. Fibre is tracked separately.</p></div> : preview && <div className="cal-entry-preview"><div><span>This entry</span><strong>{number(preview.calories)} <small>kcal</small></strong></div><div className="cal-preview-macros">{([['Protein', preview.protein], ['Carbs', preview.carbs], ['Fat', preview.fat], ['Fibre', preview.fiber]] as const).map(([name, amount]) => <span key={name}>{name}<strong>{number(amount, 1)} g</strong></span>)}</div><p>{selectedFood?.state} · {entry && !manualEditing && foodId === entry.foodId ? 'Uses nutrition saved with this entry.' : `Calculated from your food’s values per ${number(selectedFood?.baseQuantity ?? 0, 2)} ${selectedFood?.unit}.`}</p></div>}
+      </fieldset>
       {error && <p className="cal-form-error" role="alert">{error}</p>}
-      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary" disabled={mode === 'library' && !selectedFood}>{entry ? 'Save changes' : 'Add to journal'}<Icon name="check" size={17}/></button></div>
+      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary" disabled={photoBusy || (mode === 'library' && !selectedFood)}>{entry ? 'Save changes' : 'Add to journal'}<Icon name="check" size={17}/></button></div>
     </form>
   </>;
 }

@@ -1,5 +1,7 @@
-import { MAX_PHOTO_REQUEST_BYTES, normalizeFoodPhotoDraft, normalizeFoodPhotoRequest } from '../../../src/lib/calories/food-photos.ts';
+import { MAX_PHOTO_REQUEST_BYTES, normalizeFoodPhotoDraft, normalizeFoodPhotoRequest, type FoodPhotoRequest } from '../../../src/lib/calories/food-photos.ts';
+import { normalizeMealPhotoDraft, normalizeMealPhotoRequest, type MealPhotoRequest } from '../../../src/lib/calories/meal-photos.ts';
 import { extractFoodPhotos, PhotoProviderError } from './gemini.ts';
+import { estimateMealPhoto } from './meal-gemini.ts';
 
 export interface FoodPhotoServerOptions {
   supabaseUrl: string;
@@ -8,6 +10,7 @@ export interface FoodPhotoServerOptions {
   model?: string;
   fetch?: typeof fetch;
   extract?: typeof extractFoodPhotos;
+  estimate?: typeof estimateMealPhoto;
 }
 const ALLOWED_ORIGINS = new Set(['https://fangxk2003.github.io', 'http://127.0.0.1:4321', 'http://localhost:4321']);
 
@@ -38,6 +41,7 @@ async function readBody(request: Request, signal: AbortSignal): Promise<unknown>
 export function createFoodPhotoHandler(options: FoodPhotoServerOptions) {
   const requestUpstream = options.fetch ?? fetch;
   const extract = options.extract ?? extractFoodPhotos;
+  const estimate = options.estimate ?? estimateMealPhoto;
   return async (request: Request): Promise<Response> => {
     const origin = request.headers.get('origin');
     const headers = new Headers({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store', Vary: 'Origin' });
@@ -61,15 +65,25 @@ export function createFoodPhotoHandler(options: FoodPhotoServerOptions) {
       if (!access.ok) return reply(access.status === 403 ? 403 : 503, 'Your session could not be verified. Sign in again or try later.', 'session_check_failed');
       if (await access.json() !== true) return reply(403, 'Your account or session no longer has access. Sign in again.', 'access_denied');
       if (!options.apiKey) return reply(503, 'Photo reading needs its one-time API setup. You can still enter food manually.', 'not_configured');
-      if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return reply(415, 'Choose two photos using the upload form.', 'invalid_content_type');
-      let input;
-      try { input = normalizeFoodPhotoRequest(await readBody(request, signal)); }
+      if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) return reply(415, 'Choose photos using the upload form.', 'invalid_content_type');
+      let input: { mode: 'meal'; value: MealPhotoRequest } | { mode: 'food'; value: FoodPhotoRequest };
+      try {
+        const raw = await readBody(request, signal);
+        const mode = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>).mode : undefined;
+        if (mode !== undefined && mode !== 'meal') return reply(400, 'Choose a supported photo reader.', 'invalid_mode');
+        input = mode === 'meal'
+          ? { mode: 'meal', value: normalizeMealPhotoRequest(raw) }
+          : { mode: 'food', value: normalizeFoodPhotoRequest(raw) };
+      }
       catch (error) {
         if (signal.aborted) throw error;
         if (error instanceof RangeError) return reply(413, 'The photos are too large. Choose smaller images.', 'photos_too_large');
-        return reply(400, 'Choose two clear JPEG, PNG or WebP photos, no larger than 2 MB each after preparation.', 'invalid_photos');
+        return reply(400, 'Choose clear JPEG, PNG or WebP photos, no larger than 2 MB each after preparation.', 'invalid_photos');
       }
-      const draft = normalizeFoodPhotoDraft(await extract(input, { apiKey: options.apiKey, model: options.model, signal }));
+      const providerOptions = { apiKey: options.apiKey, model: options.model, signal };
+      const draft = input.mode === 'meal'
+        ? normalizeMealPhotoDraft(await estimate(input.value, providerOptions))
+        : normalizeFoodPhotoDraft(await extract(input.value, providerOptions));
       return new Response(JSON.stringify(draft), { headers });
     } catch (error) {
       if (signal.aborted) return reply(504, 'Photo reading timed out or was cancelled. Try again with clearer photos.', 'reader_timeout');

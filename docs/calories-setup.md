@@ -103,6 +103,12 @@ The function source lives in `supabase/functions/calories-food-photos/`. Deploy 
 
 Use **Log food → Manual estimate** for a restaurant meal or another meal without a food-library reference. Enter a description, the meal and date, and estimated protein, carbohydrate, fat and fibre in grams for the entire amount eaten. Nutrition fields start empty; blank values count as zero. Energy calculates automatically using the same 4/4/9 formula. The estimate contributes to daily totals and nutrient percentages, stays editable in the journal, and does not create a food-library item. JSON backups retain the manual estimate marker, and CSV exports identify the entry type.
 
+### Estimate a meal from a photo
+
+In **Log food → Manual estimate**, choose **Meal photo**, then **Estimate from photo**. The existing Gemini connection suggests the meal name and grams of protein, carbohydrate, fat and fibre for the **whole pictured portion**. An optional meal name already typed in the form is sent as context. Review or edit the suggested totals, choose the date and meal, then **Add to journal**. Photo estimates can also update an existing manual entry before you save its changes.
+
+These are approximate visual estimates, including portion size and likely ingredients; they are not label readings. Missing values stay blank. Energy still uses the local 4/4/9 calculation, excluding fibre. A photo is processed only after you request the estimate and is not stored in the journal. The same authenticated Edge Function, Gemini model and server-side GEMINI_API_KEY are used; no new API key or database setup is required. Cancelling, replacing a photo, switching away from Manual estimate, or closing the dialog cancels the request and ignores any late response. The food-library photo importer continues to read printed label values only.
+
 ## Daily deficit targets and carried calorie balance
 
 Choose a journal date and use **Edit deficit target** to save that day's target. Leave **Use this deficit target as my default** unchecked to change only the selected day. This option changes the default deficit target; a manual burned value applies only to the selected date. New untouched dates use Garmin automatically. The base food budget is burned calories minus that day's deficit target, with a minimum of zero.
