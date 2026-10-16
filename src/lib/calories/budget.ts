@@ -27,9 +27,10 @@ export interface BalanceDay extends ReturnType<typeof adjustedBudget> {
   available: boolean;
   settled: boolean;
 }
-export interface CalorieLedger { days: Record<string, BalanceDay>; completed: BalanceDay[] }
+export interface CalorieLedger { days: Record<string, BalanceDay>; completed: BalanceDay[]; provisional?: BalanceDay }
 
-/** Only ended days containing food entries contribute. Missing days never earn a budget.
+/** Ended logged days settle carry; today’s logged balance also informs future previews.
+ * Unlogged days and planned future meals never add carry.
  * Derive balances from recorded intake, each day's targets and the latest burned readings,
  * so edits and Garmin corrections propagate without storing or counting carry twice. */
 export function calorieLedger(data: TrackerData, garminDays: readonly GarminDay[], currentDay = todayISO()): CalorieLedger {
@@ -40,6 +41,7 @@ export function calorieLedger(data: TrackerData, garminDays: readonly GarminDay[
   const days: Record<string, BalanceDay> = {};
   const completed: BalanceDay[] = [];
   let carry = 0;
+  let provisional: BalanceDay | undefined;
   for (const date of [...eaten.keys()].sort()) {
     const settings = data.days[date] ?? data.defaults;
     const readings = [imported.get(date), imported.get(addDays(date, -1)), latestResting].filter((day): day is GarminDay => day !== undefined);
@@ -49,12 +51,14 @@ export function calorieLedger(data: TrackerData, garminDays: readonly GarminDay[
     const row: BalanceDay = { date, ...amounts, eaten: eaten.get(date)!, balance: finite(amounts.rawBudget - eaten.get(date)!, 'running calorie balance'), available: !reading.unavailable, settled: date < currentDay && !reading.unavailable };
     days[date] = row;
     if (row.settled) { carry = row.balance; completed.push(row); }
+    else if (date === currentDay && row.available) { carry = row.balance; provisional = row; }
   }
-  return { days, completed };
+  return { days, completed, ...(provisional ? { provisional } : {}) };
 }
 
-/** Find the prior completed balance for any selected date, including unlogged gaps. */
+/** Future previews include today’s provisional balance; earlier dates use settled carry. */
 export function carryBefore(date: string, ledger: CalorieLedger): number {
+  if (ledger.provisional && ledger.provisional.date < date) return ledger.provisional.balance;
   let low = 0, high = ledger.completed.length;
   while (low < high) {
     const middle = Math.floor((low + high) / 2);
