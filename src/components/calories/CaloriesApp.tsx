@@ -14,6 +14,8 @@ import { addPreparedPortions, consumeFoodBankPortion } from '../../lib/calories/
 import { FormDraftProvider, useFormDrafts, clearFormDrafts, usePersistentFormDraft, DraftRestoredNotice } from './FormDrafts';
 import type { FormDraftSummary } from '../../lib/calories/form-drafts';
 import { assertCurrentRecord } from '../../lib/calories/draft-conflicts';
+import { createUndoAction, undoAction, type UndoAction, type UndoKind } from '../../lib/calories/undo';
+import UndoNotice from './UndoNotice';
 import './calories.css';
 import './offline.css';
 
@@ -97,6 +99,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
   const [offline, setOffline] = useState(false);
   const [journalScope, setJournalScope] = useState<string | null>(null);
   const [recoveryNotice, setRecoveryNotice] = useState('');
+  const [undoNotice, setUndoNotice] = useState<{ action: UndoAction; message: string; scope: string } | null>(null);
   const [garmin, setGarmin] = useState<GarminSnapshot>(emptyGarminSnapshot);
   const [garminLoading, setGarminLoading] = useState(false);
   const [garminLoadError, setGarminLoadError] = useState('');
@@ -123,6 +126,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
   const journalVersion = useRef<string | undefined>(undefined);
   const deferredJournal = useRef<{ snapshot: JournalSnapshot; version: number } | null>(null);
   const lastLocalError = useRef('');
+  const undoing = useRef(false);
 
   useEffect(() => {
     let dayTimer: ReturnType<typeof setTimeout>;
@@ -208,6 +212,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
   async function reloadSavedData() {
     if (saving.current || refreshing.current || localWrites.current) { setSaveError('Wait for the current save or refresh to finish before reloading.'); return; }
     if (!window.confirm('Reload the saved journal? Unsaved changes on this device will be discarded.')) return;
+    setUndoNotice(null);
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
     blockedSave.current = true;
     setModal(null);
@@ -236,7 +241,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
 
   useEffect(() => {
     if (phase === 'ready') void refreshGarmin();
-    else { deferredGarmin.current = null; setGarmin(emptyGarminSnapshot()); setGarminLoading(false); setGarminLoadError(''); disconnectingGarmin.current = false; setGarminDisconnecting(false); }
+    else { setUndoNotice(null); deferredGarmin.current = null; setGarmin(emptyGarminSnapshot()); setGarminLoading(false); setGarminLoadError(''); disconnectingGarmin.current = false; setGarminDisconnecting(false); }
     return () => { garminRequest.current++; garminSessionScope.current++; garminFetching.current = false; };
   }, [phase]);
 
@@ -339,6 +344,47 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
     return work;
   }
 
+  async function updateWithUndo(kind: UndoKind, id: string, transform: (current: TrackerData) => TrackerData, message: (before: TrackerData) => string): Promise<boolean> {
+    const scope = client.getJournalScope();
+    let action: UndoAction | undefined;
+    let text = '';
+    const persisted = await updateData(current => {
+      if (!scope || client.getJournalScope() !== scope) throw new Error('Sign in again before changing your journal.');
+      const next = transform(current);
+      action = createUndoAction(current, next, kind, id);
+      text = message(current);
+      return next;
+    });
+    if (persisted && action && scope && client.getJournalScope() === scope) setUndoNotice({ action, message: text, scope });
+    return persisted;
+  }
+
+  async function undoLatest(action: UndoAction, scope: string) {
+    if (undoing.current) throw new Error('Wait for the current Undo to finish, then try again.');
+    undoing.current = true;
+    try {
+      if (!(await updateData(current => {
+        if (client.getJournalScope() !== scope) throw new Error('This Undo belongs to an earlier sign-in.');
+        return undoAction(current, action);
+      }))) throw new Error(lastLocalError.current);
+      if (action.kind === 'delete-entry') openDay(action.record.date);
+      else if (action.kind === 'delete-food') { setView('foods'); setFoodSearch(''); }
+      else setView('bank');
+    } finally { undoing.current = false; }
+  }
+
+  async function removeEntry(id: string) {
+    if (await updateWithUndo('delete-entry', id, current => ({ ...current, entries: current.entries.filter(entry => entry.id !== id) }), before => `Removed ${before.entries.find(entry => entry.id === id)?.foodName ?? 'entry'}.`)) setDeleteEntryId(null);
+  }
+
+  async function removeFood(id: string) {
+    if (await updateWithUndo('delete-food', id, current => ({ ...current, foods: current.foods.filter(food => food.id !== id) }), before => `Removed ${before.foods.find(food => food.id === id)?.name ?? 'food'} from the library.`)) setDeleteFoodId(null);
+  }
+
+  async function removeBankPortion(id: string) {
+    await updateWithUndo('delete-bank', id, current => ({ ...current, foodBank: current.foodBank.filter(portion => portion.id !== id) }), before => `Removed ${before.foodBank.find(portion => portion.id === id)?.name ?? 'prepared portion'}.`);
+  }
+
   async function signIn(event: FormEvent) {
     event.preventDefault();
     setBusy(true); setNotice('');
@@ -361,6 +407,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
       }
     }
     setBusy(true);
+    setUndoNotice(null);
     if (journalScope) clearFormDrafts(journalScope);
     deferredJournal.current = null;
     const signOutRequest = client.signOut();
@@ -395,7 +442,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
   }
 
   async function eatBankPortion(portionId: string, entryDate: string, meal: string) {
-    if (!(await updateData(current => consumeFoodBankPortion(current, portionId, entryDate, meal)))) throw new Error('This portion could not be saved on this device. Export your unsaved journal before reloading.');
+    if (!(await updateWithUndo('consume-bank', portionId, current => consumeFoodBankPortion(current, portionId, entryDate, meal), before => `Logged ${before.foodBank.find(portion => portion.id === portionId)?.name ?? 'prepared portion'}.`))) throw new Error(lastLocalError.current);
     setModal(null); openDay(entryDate);
   }
 
@@ -527,20 +574,20 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
               : <div className="cal-meals">{meals.map((meal, index) => {
                 const entries = dayEntries.filter(entry => entry.meal === meal);
                 const mealTotals = dayTotals(entries);
-                return <div className="cal-meal" key={meal}><div className="cal-meal-heading"><span className="cal-meal-number">{String(index + 1).padStart(2, '0')}</span><h3>{meal}</h3><span>{number(mealTotals.calories)} kcal</span></div><div className="cal-entry-list">{entries.map(entry => <div className="cal-entry" key={entry.id}><div className="cal-entry-info"><strong>{entry.foodName}</strong><span>{entry.source === 'manual' ? 'Manual estimate' : <>{number(entry.quantity, 2)} {unitLabel(entry.unit, entry.quantity)}<i/> {entry.state}</>}</span></div><div className="cal-entry-macros"><span><b>P</b> {number(entry.protein, 1)}<small> g</small></span><span><b>C</b> {number(entry.carbs, 1)}<small> g</small></span><span><b>F</b> {number(entry.fat, 1)}<small> g</small></span><span><b>Fibre</b> {number(entry.fiber, 1)}<small> g</small></span></div><strong className="cal-entry-energy">{number(entry.calories)}<small> kcal</small></strong><div className="cal-entry-actions">{deleteEntryId === entry.id ? <><button className="cal-text-button cal-danger" onClick={() => { updateData(current => ({ ...current, entries: current.entries.filter(item => item.id !== entry.id) })); setDeleteEntryId(null); }}>Remove</button><button className="cal-icon-button" onClick={() => setDeleteEntryId(null)} aria-label="Cancel removal"><Icon name="close" size={16}/></button></> : <><button className="cal-icon-button" onClick={() => setModal({ type: 'entry', entry })} aria-label={`Edit ${entry.foodName}`}><Icon name="edit" size={16}/></button><button className="cal-icon-button" onClick={() => setDeleteEntryId(entry.id)} aria-label={`Remove ${entry.foodName}`}><Icon name="trash" size={16}/></button></>}</div></div>)}</div></div>;
+                return <div className="cal-meal" key={meal}><div className="cal-meal-heading"><span className="cal-meal-number">{String(index + 1).padStart(2, '0')}</span><h3>{meal}</h3><span>{number(mealTotals.calories)} kcal</span></div><div className="cal-entry-list">{entries.map(entry => <div className="cal-entry" key={entry.id}><div className="cal-entry-info"><strong>{entry.foodName}</strong><span>{entry.source === 'manual' ? 'Manual estimate' : <>{number(entry.quantity, 2)} {unitLabel(entry.unit, entry.quantity)}<i/> {entry.state}</>}</span></div><div className="cal-entry-macros"><span><b>P</b> {number(entry.protein, 1)}<small> g</small></span><span><b>C</b> {number(entry.carbs, 1)}<small> g</small></span><span><b>F</b> {number(entry.fat, 1)}<small> g</small></span><span><b>Fibre</b> {number(entry.fiber, 1)}<small> g</small></span></div><strong className="cal-entry-energy">{number(entry.calories)}<small> kcal</small></strong><div className="cal-entry-actions">{deleteEntryId === entry.id ? <><button className="cal-text-button cal-danger" onClick={() => void removeEntry(entry.id)}>Remove</button><button className="cal-icon-button" onClick={() => setDeleteEntryId(null)} aria-label="Cancel removal"><Icon name="close" size={16}/></button></> : <><button className="cal-icon-button" onClick={() => setModal({ type: 'entry', entry })} aria-label={`Edit ${entry.foodName}`}><Icon name="edit" size={16}/></button><button className="cal-icon-button" onClick={() => setDeleteEntryId(entry.id)} aria-label={`Remove ${entry.foodName}`}><Icon name="trash" size={16}/></button></>}</div></div>)}</div></div>;
               })}</div>}
           </section>
         </>}
 
         {view === 'bank' && <>
           <section className="cal-page-heading"><div><div className="cal-eyebrow">PREPARED FOR LATER</div><h1>Food bank<span className="cal-heading-dot">.</span></h1><p>Your portions, ready to log.</p></div></section>
-          <FoodBankView portions={data.foodBank} onPrepare={() => setModal({ type: 'bank-prepare' })} onEat={portion => setModal({ type: 'bank-consume', portion })} onRemove={id => updateData(current => ({ ...current, foodBank: current.foodBank.filter(portion => portion.id !== id) }))}/>
+          <FoodBankView portions={data.foodBank} onPrepare={() => setModal({ type: 'bank-prepare' })} onEat={portion => setModal({ type: 'bank-consume', portion })} onRemove={id => void removeBankPortion(id)}/>
         </>}
 
         {view === 'foods' && <>
           <section className="cal-page-heading"><div><div className="cal-eyebrow">YOUR OWN LITTLE LIBRARY</div><h1>Everyday foods<span className="cal-heading-dot">.</span></h1><p>Most logged in the last 14 days, first.</p></div><button className="cal-button cal-button-primary" onClick={() => setModal({ type: 'food' })}><Icon name="plus" size={18}/>Add food</button></section>
           <div className="cal-library-bar"><label className="cal-search"><Icon name="search" size={19}/><input type="search" placeholder="Find a food…" aria-label="Search food library" value={foodSearch} onChange={event => setFoodSearch(event.target.value)}/></label><span>{data.foods.length} {data.foods.length === 1 ? 'food' : 'foods'} in your library</span></div>
-          {visibleFoods.length ? <div className="cal-food-grid">{visibleFoods.map(food => <article className="cal-food-card" key={food.id}><div className="cal-food-heading"><span className="cal-food-state">{food.state}</span><div>{deleteFoodId === food.id ? <button className="cal-text-button" onClick={() => setDeleteFoodId(null)}>Cancel</button> : <button className="cal-icon-button" onClick={() => setModal({ type: 'food', food })} aria-label={`Edit ${food.name}`}><Icon name="edit" size={17}/></button>}</div></div><h2>{food.name}</h2><p>Per {number(food.baseQuantity, 2)} {unitLabel(food.unit, food.baseQuantity)}</p><div className="cal-food-energy"><strong>{number(food.calories)}</strong><span>kcal</span></div><div className="cal-food-macros"><span>Protein<strong>{number(food.protein, 1)} g</strong></span><span>Carbs<strong>{number(food.carbs, 1)} g</strong></span><span>Fat<strong>{number(food.fat, 1)} g</strong></span><span>Fibre<strong>{number(food.fiber, 1)} g</strong></span></div><div className="cal-food-footer">{deleteFoodId === food.id ? <><p>Existing log entries will be kept.</p><button className="cal-text-button cal-danger" onClick={() => { updateData(current => ({ ...current, foods: current.foods.filter(item => item.id !== food.id) })); setDeleteFoodId(null); }}>Remove food</button></> : <><button className="cal-text-button" onClick={() => setModal({ type: 'entry', foodId: food.id })}>Log this food<Icon name="plus" size={16}/></button><button className="cal-icon-button" onClick={() => setDeleteFoodId(food.id)} aria-label={`Remove ${food.name} from library`}><Icon name="trash" size={16}/></button></>}</div></article>)}</div> : <div className="cal-empty-journal cal-library-empty"><span className="cal-empty-art"><Icon name="book" size={36}/></span><h3>{foodSearch ? 'No foods found.' : 'Your favourites start here.'}</h3><p>{foodSearch ? 'Try a different name, or add a new food.' : 'Use the nutrition on your food label to build a library that feels like you.'}</p><button className="cal-text-button" onClick={() => setModal({ type: 'food' })}>Add a food<Icon name="plus" size={17}/></button></div>}
+          {visibleFoods.length ? <div className="cal-food-grid">{visibleFoods.map(food => <article className="cal-food-card" key={food.id}><div className="cal-food-heading"><span className="cal-food-state">{food.state}</span><div>{deleteFoodId === food.id ? <button className="cal-text-button" onClick={() => setDeleteFoodId(null)}>Cancel</button> : <button className="cal-icon-button" onClick={() => setModal({ type: 'food', food })} aria-label={`Edit ${food.name}`}><Icon name="edit" size={17}/></button>}</div></div><h2>{food.name}</h2><p>Per {number(food.baseQuantity, 2)} {unitLabel(food.unit, food.baseQuantity)}</p><div className="cal-food-energy"><strong>{number(food.calories)}</strong><span>kcal</span></div><div className="cal-food-macros"><span>Protein<strong>{number(food.protein, 1)} g</strong></span><span>Carbs<strong>{number(food.carbs, 1)} g</strong></span><span>Fat<strong>{number(food.fat, 1)} g</strong></span><span>Fibre<strong>{number(food.fiber, 1)} g</strong></span></div><div className="cal-food-footer">{deleteFoodId === food.id ? <><p>Existing log entries will be kept.</p><button className="cal-text-button cal-danger" onClick={() => void removeFood(food.id)}>Remove food</button></> : <><button className="cal-text-button" onClick={() => setModal({ type: 'entry', foodId: food.id })}>Log this food<Icon name="plus" size={16}/></button><button className="cal-icon-button" onClick={() => setDeleteFoodId(food.id)} aria-label={`Remove ${food.name} from library`}><Icon name="trash" size={16}/></button></>}</div></article>)}</div> : <div className="cal-empty-journal cal-library-empty"><span className="cal-empty-art"><Icon name="book" size={36}/></span><h3>{foodSearch ? 'No foods found.' : 'Your favourites start here.'}</h3><p>{foodSearch ? 'Try a different name, or add a new food.' : 'Use the nutrition on your food label to build a library that feels like you.'}</p><button className="cal-text-button" onClick={() => setModal({ type: 'food' })}>Add a food<Icon name="plus" size={17}/></button></div>}
         </>}
 
         {view === 'history' && <>
@@ -570,6 +617,8 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
         <footer className="cal-footer"><span>A little more aware, every day.</span><span>Personal journal · <a href="/">fangxk2003</a></span></footer>
       </main>
 
+      {undoNotice && <UndoNotice id={undoNotice.action.id} message={undoNotice.message} active={!modal} onUndo={() => undoLatest(undoNotice.action, undoNotice.scope)} onDismiss={() => setUndoNotice(current => current?.action.id === undoNotice.action.id ? null : current)}/>}
+
       {modal && <Modal onClose={() => setModal(null)}>{modal.type === 'entry' ? <EntryEditor key={modal.entry?.id ?? modal.foodId ?? 'new-entry'} entry={modal.entry} initialFoodId={modal.foodId} foods={sortedFoods} date={date} onSave={saveEntry} readMealPhoto={(input, signal) => client.estimateMealPhoto(input, signal)} onAddFood={() => setModal({ type: 'food', returnToLog: true })} onFoodBank={openFoodBank} bankCount={data.foodBank.length} onClose={() => setModal(null)}/>
         : modal.type === 'food' ? <FoodEditor key={modal.food?.id ?? 'new-food'} food={modal.food} readPhotos={(input, signal) => client.readFoodPhotos(input, signal)} onSave={saveFood} onClose={() => setModal(null)}/>
         : modal.type === 'bank-prepare' ? <FoodBankEditor foods={sortedFoods} onSave={saveBankPortions} onClose={() => setModal(null)}/>
@@ -584,7 +633,7 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
           setModal(null);
         }} onClose={() => setModal(null)}/>
         : modal.type === 'garmin' ? <GarminConnection date={date} currentDay={currentDay} snapshot={garmin} loading={garminLoading || garminDisconnecting} disconnecting={garminDisconnecting} error={garminLoadError} onRefresh={() => void refreshGarmin()} onDisconnect={() => void disconnectGarmin()} onClose={() => setModal(null)}/>
-        : <TransferDialog data={queue.current ?? data} onImport={async (next) => { if (!(await updateData(() => next))) throw new Error('The backup could not be saved on this device.'); setModal(null); }} onClose={() => setModal(null)}/>}</Modal>}
+        : <TransferDialog data={queue.current ?? data} onImport={async (next) => { if (!(await updateData(() => next))) throw new Error('The backup could not be saved on this device.'); setUndoNotice(null); setModal(null); }} onClose={() => setModal(null)}/>}</Modal>}
     </FormDraftProvider>}
   </div>;
 }

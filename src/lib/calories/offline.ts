@@ -43,17 +43,24 @@ function stable(value: unknown): string {
   return JSON.stringify(value) ?? 'undefined';
 }
 export function journalEqual(a: unknown, b: unknown): boolean { return stable(a) === stable(b); }
-function choose<T>(base: T, local: T, remote: T, label: string): T {
+function choose<T>(base: T, local: T, remote: T, label: string, uncertain: readonly T[] = []): T {
+  // A lost response may hide a committed write. If this record changed again
+  // locally (including Undo), preserve that later intent rather than mistaking
+  // a return to the old baseline for "no local edit". An unchanged cloud record
+  // still uses the original baseline: the attempted write may never have arrived.
+  for (const attempt of uncertain) {
+    if (!journalEqual(base, attempt) && !journalEqual(local, attempt) && !journalEqual(remote, base)) base = attempt;
+  }
   if (journalEqual(local, remote) || journalEqual(base, remote)) return local;
   if (journalEqual(base, local)) return remote;
   throw new JournalConflictError(label);
 }
-function keyed<T extends { id: string }>(base: readonly T[], local: readonly T[], remote: readonly T[], label: string): T[] {
-  const maps = [base, local, remote].map(rows => new Map(rows.map(row => [row.id, row])));
+function keyed<T extends { id: string }>(base: readonly T[], local: readonly T[], remote: readonly T[], label: string, uncertain: readonly (readonly T[])[] = []): T[] {
+  const maps = [base, local, remote, ...uncertain].map(rows => new Map(rows.map(row => [row.id, row])));
   const ids = new Set([...remote, ...local, ...base].map(row => row.id));
   const result: T[] = [];
   for (const id of ids) {
-    const value = choose(maps[0].get(id), maps[1].get(id), maps[2].get(id), label);
+    const value = choose(maps[0].get(id), maps[1].get(id), maps[2].get(id), label, maps.slice(3).map(map => map.get(id)));
     if (value !== undefined) result.push(value);
   }
   return result;
@@ -61,8 +68,8 @@ function keyed<T extends { id: string }>(base: readonly T[], local: readonly T[]
 
 /** A portion and every entry made from its stable ingredient IDs move together.
  * Two different consumes/removes never merge into a partially consumed meal. */
-function inventory(base: TrackerData, local: TrackerData, remote: TrackerData): { entries: Entry[]; foodBank: BankPortion[] } {
-  const versions = [base, local, remote];
+function inventory(base: TrackerData, local: TrackerData, remote: TrackerData, uncertain: readonly TrackerData[]): { entries: Entry[]; foodBank: BankPortion[] } {
+  const versions = [base, local, remote, ...uncertain];
   const portions = new Map<string, Set<string>>();
   const itemOwner = new Map<string, string>();
   for (const data of versions) for (const portion of data.foodBank) {
@@ -75,7 +82,7 @@ function inventory(base: TrackerData, local: TrackerData, remote: TrackerData): 
     portions.set(portion.id, ids);
   }
   const allItems = new Set(itemOwner.keys());
-  const entries = keyed(base.entries.filter(e => !allItems.has(e.id)), local.entries.filter(e => !allItems.has(e.id)), remote.entries.filter(e => !allItems.has(e.id)), 'the same journal entry');
+  const entries = keyed(base.entries.filter(e => !allItems.has(e.id)), local.entries.filter(e => !allItems.has(e.id)), remote.entries.filter(e => !allItems.has(e.id)), 'the same journal entry', uncertain.map(data => data.entries.filter(e => !allItems.has(e.id))));
   const foodBank: BankPortion[] = [];
   const grouped = versions.map(data => {
     const byPortion = new Map(data.foodBank.map(portion => [portion.id, portion]));
@@ -94,7 +101,7 @@ function inventory(base: TrackerData, local: TrackerData, remote: TrackerData): 
       portion: data.byPortion.get(id),
       entries: data.byItems.get(id) ?? [],
     }));
-    const selected = choose(states[0], states[1], states[2], 'the same food-bank portion');
+    const selected = choose(states[0], states[1], states[2], 'the same food-bank portion', states.slice(3));
     if (selected.portion) foodBank.push(selected.portion);
     entries.push(...selected.entries);
   }
@@ -102,16 +109,16 @@ function inventory(base: TrackerData, local: TrackerData, remote: TrackerData): 
 }
 
 /** Three-way merge uses whole records: changed/deleted records conflict, disjoint IDs merge. */
-export function mergeJournals(baseRaw: TrackerData, localRaw: TrackerData, remoteRaw: TrackerData): TrackerData {
-  const [base, local, remote] = [baseRaw, localRaw, remoteRaw].map(normalizeData);
+export function mergeJournals(baseRaw: TrackerData, localRaw: TrackerData, remoteRaw: TrackerData, uncertainRaw: readonly TrackerData[] = []): TrackerData {
+  const [base, local, remote, ...uncertain] = [baseRaw, localRaw, remoteRaw, ...uncertainRaw].map(normalizeData);
   const days: TrackerData['days'] = {};
   for (const date of new Set([...Object.keys(remote.days), ...Object.keys(local.days), ...Object.keys(base.days)])) {
-    const day = choose(base.days[date], local.days[date], remote.days[date], `the targets for ${date}`);
+    const day = choose(base.days[date], local.days[date], remote.days[date], `the targets for ${date}`, uncertain.map(data => data.days[date]));
     if (day !== undefined) days[date] = day;
   }
-  const defaults = choose(base.defaults, local.defaults, remote.defaults, 'the default targets');
+  const defaults = choose(base.defaults, local.defaults, remote.defaults, 'the default targets', uncertain.map(data => data.defaults));
   try {
-    return normalizeData({ version: 2, foods: keyed(base.foods, local.foods, remote.foods, 'the same library food'), ...inventory(base, local, remote), days, defaults });
+    return normalizeData({ version: 2, foods: keyed(base.foods, local.foods, remote.foods, 'the same library food', uncertain.map(data => data.foods)), ...inventory(base, local, remote, uncertain), days, defaults });
   } catch (error) {
     if (error instanceof JournalConflictError) throw error;
     throw new JournalConflictError('overlapping journal or food-bank records');

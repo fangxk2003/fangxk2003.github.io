@@ -1,0 +1,13 @@
+.cal-undo-notice { position: fixed; z-index: 60; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; align-items: center; justify-content: space-between; gap: 14px; width: max-content; max-width: min(650px, calc(100% - 28px)); padding: 9px 10px 9px 17px; border: 1px solid #cbd8bb; border-radius: 12px; background: #edf3e4; color: #3f5833; box-shadow: 0 5px 24px #293f2421; }
+.cal-undo-content { min-width: 0; }
+.cal-undo-message { font-size: 13px; font-weight: 500; line-height: 1.65; margin: 0; overflow-wrap: anywhere; }
+.cal-undo-error { color: #92513e; font-size: 12px; line-height: 1.65; margin: 5px 0 0; overflow-wrap: anywhere; }
+.cal-undo-has-error { border-color: #dfcdb7; }
+.cal-undo-actions { display: flex; align-items: center; flex-shrink: 0; gap: 4px; }
+.cal-undo-button { min-width: 56px; min-height: 44px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: #345329; font-size: 13px; font-weight: 600; cursor: pointer; }
+.cal-undo-button:hover:not(:disabled) { background: #dfe9d2; }
+.cal-undo-dismiss { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: #5e7051; cursor: pointer; }
+.cal-undo-dismiss:hover:not(:disabled) { background: #dfe9d2; }
+.cal-undo-button:focus-visible, .cal-undo-dismiss:focus-visible { outline: 2px solid #6d8656; outline-offset: 1px; }
+.cal-undo-button:disabled, .cal-undo-dismiss:disabled { opacity: .55; cursor: default; }
+@media (max-width: 480px) { .cal-undo-notice { gap: 8px; padding-left: 13px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); } .cal-undo-message { font-size: 12px; } .cal-undo-button { font-size: 12px; min-width: 52px; padding-inline: 8px; } }

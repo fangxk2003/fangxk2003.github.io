@@ -93,7 +93,7 @@ export function createClient(options: ClientOptions = {}) {
     observedJournals.set(cache.localVersion, data);
     if (observedJournals.size > 32) observedJournals.delete(observedJournals.keys().next().value!);
     lastJournalVersion = cache.localVersion;
-    return { data: normalizeData(data), pending: !journalEqual(cache.baseline.data, data), offline, conflict: cache.conflict, localVersion: cache.localVersion };
+    return { data: normalizeData(data), pending: !journalEqual(cache.baseline.data, data) || Boolean(cache.attempted?.length), offline, conflict: cache.conflict, localVersion: cache.localVersion };
   }
   function cachedGarmin(): GarminSnapshot | null {
     if (!configuration) return null;
@@ -263,13 +263,19 @@ export function createClient(options: ClientOptions = {}) {
             try {
               if (previous) {
                 let base = previous.baseline.data;
+                let uncertain: TrackerData[] = [];
                 // Resolve uncertain responses by recognizing the already committed snapshot.
                 for (const attempt of previous.attempted ?? []) {
                   try {
-                    if (journalEqual(mergeJournals(base, attempt.data, cloud.data), cloud.data)) base = attempt.data;
-                  } catch { /* A genuinely divergent attempted write stays a conflict. */ }
+                    if (journalEqual(mergeJournals(base, attempt.data, cloud.data), cloud.data)) {
+                      base = attempt.data;
+                      uncertain = [];
+                      continue;
+                    }
+                  } catch { /* Preserve later local intent when the attempted commit cannot be recognized. */ }
+                  uncertain.push(attempt.data);
                 }
-                working = mergeJournals(base, previous.working, cloud.data);
+                working = mergeJournals(base, previous.working, cloud.data, uncertain);
               }
             } catch (error) {
               if (!(error instanceof JournalConflictError) || !previous) throw error;
@@ -277,7 +283,10 @@ export function createClient(options: ClientOptions = {}) {
             }
             const attempted = (previous?.attempted ?? []).filter(attempt => attempt.revision === cloud.revision);
             let cache: JournalCache = { format: 1, project: config().url, owner, verifiedDeadline: deadline, baseline: cloud, working, localVersion: '', conflict: null, ...(attempted.length ? { attempted } : {}) };
-            const write = !journalEqual(working, cloud.data);
+            // Fence off an earlier request that could still arrive after this
+            // read. Even an Undo equal to cloud needs a CAS revision advance
+            // before its unconfirmed predecessor can safely be forgotten.
+            const write = !journalEqual(working, cloud.data) || attempted.length > 0;
             if (write) {
               if (attempted.length >= 20) throw new Error('Several saves could not be confirmed. Your local changes are kept; reconnect on a stable connection before syncing again.');
               cache.attempted = [...attempted, { data: working, revision: cloud.revision }];

@@ -133,6 +133,12 @@ The displayed food budget limits the combined budgeted deficit (the day's saved 
 
 Settlement always uses the full allowance minus actual intake, including debt deferred by the limit. The displayed budget has a minimum of zero; fat/carbohydrate/fibre targets follow that displayed budget. Protein stays fixed at 175 g. Actual burned-minus-intake deficit is a separate reading and can exceed the budgeted limit if actual intake is below the allowance. Editing old entries or daily targets, or receiving corrected Garmin readings, recalculates later balances. Balances are derived from the synced journal and Garmin data, so no second balance record needs saving.
 
+## Undo recent actions
+
+Removing a journal entry, library food or uneaten bank portion, or consuming a bank portion, shows an **Undo** button for 20 seconds. The latest action replaces the previous notice. The timer pauses while you hover over or focus the notice, while an editor is open, while the page is hidden, or while Undo is running. You can also dismiss the notice.
+
+Undo restores only the affected records and keeps subsequent unrelated edits. Undoing a consumed portion restores that exact portion and removes all its generated ingredient entries together; existing daily targets stay in place. If an affected record has since changed, Undo stops with an explanation rather than overwriting it. Offline Undo is saved on this device and joins the same sync queue. Overlapping edits from another device keep the local copy and show the existing conflict controls. Undo is available only in the current page session; reloading, signing out, importing a backup or explicitly reloading saved data clears it.
+
 ## Food bank
 
 Open **Food bank → Prepare portions** to set aside groceries before eating them. Add one or more library foods, enter each quantity **per portion**, and choose how many identical portions to prepare. For example, 150 g chicken and 200 g rice with a count of 3 creates three separate portions, each containing those amounts. A portion keeps its own nutrition snapshot, so editing or removing the library food later does not change prepared food.
