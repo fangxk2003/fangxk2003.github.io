@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
 import { macrosForFood, type BankPortion, type Food, type Macros } from '../../lib/calories/model';
 import { prepareFoodBankPortions } from '../../lib/calories/food-bank';
+import { DraftRestoredNotice, usePersistentFormDraft } from './FormDrafts';
 import './food-bank.css';
 
 const number = (value: number, decimals = 1) => new Intl.NumberFormat('en-GB', { maximumFractionDigits: decimals }).format(value);
@@ -39,12 +40,14 @@ export function FoodBankView({ portions, onPrepare, onEat, onRemove }: { portion
 }
 
 interface IngredientDraft { key: number; foodId: string; query: string; quantity: string }
-export function FoodBankEditor({ foods, onSave, onClose }: { foods: readonly Food[]; onSave: (portions: BankPortion[]) => void; onClose: () => void }) {
+export function FoodBankEditor({ foods, onSave, onClose }: { foods: readonly Food[]; onSave: (portions: BankPortion[]) => void | Promise<void>; onClose: () => void }) {
   const id = useId();
-  const [name, setName] = useState('');
-  const [count, setCount] = useState('1');
-  const [ingredients, setIngredients] = useState<IngredientDraft[]>([{ key: 0, foodId: foods[0]?.id ?? '', query: '', quantity: '' }]);
-  const nextKey = useRef(1);
+  const form = usePersistentFormDraft('bank:prepare', { draftBatchId: crypto.randomUUID(), name: '', count: '1', ingredients: [{ key: 0, foodId: foods[0]?.id ?? '', query: '', quantity: '' }] as IngredientDraft[] }, value => ({ kind: 'bank-prepare', label: value.name.trim() || 'Prepared portions' }));
+  const [name, setName] = form.field('name');
+  const [count, setCount] = form.field('count');
+  const [ingredients, setIngredients] = form.field('ingredients');
+  const nextKey = useRef(Math.max(0, ...ingredients.map(ingredient => ingredient.key)) + 1);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const matches = (food: Food, query: string) => food.name.toLowerCase().includes(query.trim().toLowerCase());
   const selectedFood = (ingredient: IngredientDraft) => foods.find(food => food.id === ingredient.foodId && matches(food, ingredient.query));
@@ -72,18 +75,26 @@ export function FoodBankEditor({ foods, onSave, onClose }: { foods: readonly Foo
     setIngredients(current => [...current, { key, foodId: foods[0]?.id ?? '', query: '', quantity: '' }]);
     setError('');
   }
-  function submit(event: FormEvent) {
+  function closeEditor() { form.clearDraft(); onClose(); }
+  async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitting) return;
     if (ingredients.some(ingredient => !selectedFood(ingredient) || !ingredient.quantity.trim())) { setError('Choose a food and enter an amount for every ingredient.'); return; }
     if (!Number.isInteger(Number(count)) || Number(count) < 1 || Number(count) > 100) { setError('Prepare between 1 and 100 whole portions.'); return; }
     try {
-      const prepared = prepareFoodBankPortions(foods, ingredients.map(ingredient => ({ foodId: ingredient.foodId, quantity: Number(ingredient.quantity) })), Number(count), name.trim() || autoName, () => crypto.randomUUID());
-      onSave(prepared);
+      let generatedId = 0;
+      const prepared = prepareFoodBankPortions(foods, ingredients.map(ingredient => ({ foodId: ingredient.foodId, quantity: Number(ingredient.quantity) })), Number(count), name.trim() || autoName, () => `${form.draft.draftBatchId}:${generatedId++}`);
+      setSubmitting(true);
+      await onSave(prepared);
+      form.clearDraft();
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'These portions couldn’t be prepared. Check the ingredients and amounts.'); }
+    finally { setSubmitting(false); }
   }
   return <>
-    <BankHeader title="Prepare food for later" onClose={onClose}/>
+    <BankHeader title="Prepare food for later" onClose={closeEditor}/>
     <form className="cal-form cal-bank-editor" onSubmit={submit}>
+      <DraftRestoredNotice {...form} disabled={submitting} discardDraft={() => { form.discardDraft(); setError(''); }}/>
+      <fieldset className="cal-form cal-food-editor-fields" disabled={submitting}>
       <div className="cal-form-grid cal-bank-name-grid"><label>Portion name <small className="cal-field-hint">Optional</small><input value={name} onChange={event => setName(event.target.value)} placeholder={autoName || 'e.g. Chicken and rice'} maxLength={160}/></label><label>Number of portions<input type="number" inputMode="numeric" value={count} onChange={event => { setCount(event.target.value); setError(''); }} min={1} max={100} step={1} required/></label></div>
       <div className="cal-bank-section-heading"><strong id={`${id}-amounts`}>Amounts per portion</strong><span>Each portion gets these amounts.</span></div>
       {foods.length === 0 && <p className="cal-bank-empty-library">Add a food to your Food library before preparing portions.</p>}
@@ -99,31 +110,38 @@ export function FoodBankEditor({ foods, onSave, onClose }: { foods: readonly Foo
       })}</div>
       <button className="cal-text-button cal-bank-add-ingredient cal-bank-touch" type="button" onClick={addIngredient} disabled={foods.length === 0 || ingredients.length >= 50}><BankIcon name="plus" size={17}/>{ingredients.length >= 50 ? '50 ingredients maximum' : 'Add ingredient'}</button>
       <div className="cal-bank-editor-preview" aria-live="polite"><BankNutrition totals={preview} label="Nutrition per portion"/>{!previewComplete && <p>Add every amount to complete the preview.</p>}</div>
+      </fieldset>
       {error && <p className="cal-form-error" role="alert">{error}</p>}
-      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary" type="submit" disabled={foods.length === 0}>Prepare {Number.isInteger(Number(count)) && Number(count) > 0 && Number(count) <= 100 ? `${number(Number(count), 0)} ${Number(count) === 1 ? 'portion' : 'portions'}` : 'portions'}<BankIcon name="check" size={17}/></button></div>
+      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={closeEditor} disabled={submitting}>Cancel</button><button className="cal-button cal-button-primary" type="submit" disabled={foods.length === 0 || submitting}>{submitting ? 'Saving portions…' : <>Prepare {Number.isInteger(Number(count)) && Number(count) > 0 && Number(count) <= 100 ? `${number(Number(count), 0)} ${Number(count) === 1 ? 'portion' : 'portions'}` : 'portions'}</>}<BankIcon name="check" size={17}/></button></div>
     </form>
   </>;
 }
 
-export function FoodBankConsume({ portion, date, onSave, onClose }: { portion: BankPortion; date: string; onSave: (date: string, meal: string) => void; onClose: () => void }) {
+export function FoodBankConsume({ portion, date, onSave, onClose }: { portion: BankPortion; date: string; onSave: (date: string, meal: string) => void | Promise<void>; onClose: () => void }) {
   const [entryDate, setEntryDate] = useState(date);
   const [meal, setMeal] = useState('Lunch');
   const [customMeal, setCustomMeal] = useState('');
   const [error, setError] = useState('');
-  function submit(event: FormEvent) {
+  const [submitting, setSubmitting] = useState(false);
+  async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitting) return;
     const selectedMeal = meal === 'Custom' ? customMeal.trim() : meal;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate) || Number.isNaN(Date.parse(`${entryDate}T12:00:00Z`)) || new Date(`${entryDate}T12:00:00Z`).toISOString().slice(0, 10) !== entryDate || !selectedMeal) { setError('Choose a date and meal for this portion.'); return; }
-    try { onSave(entryDate, selectedMeal); } catch (caught) { setError(caught instanceof Error ? caught.message : 'This portion couldn’t be logged. Try again.'); }
+    setSubmitting(true);
+    try { await onSave(entryDate, selectedMeal); } catch (caught) { setError(caught instanceof Error ? caught.message : 'This portion couldn’t be logged. Try again.'); }
+    finally { setSubmitting(false); }
   }
   return <>
     <BankHeader title="Eat a prepared portion" onClose={onClose}/>
     <div className="cal-bank-consume-summary"><h3>{portion.name}</h3><BankIngredients portion={portion}/><BankNutrition totals={sumNutrition(portion.items)}/></div>
     <form className="cal-form cal-bank-consume-form" onSubmit={submit}>
+      <fieldset className="cal-form cal-food-editor-fields" disabled={submitting}>
       <div className="cal-form-grid"><label>Date<input type="date" value={entryDate} onChange={event => { setEntryDate(event.target.value); setError(''); }} required/></label><label>Meal<select value={meal} onChange={event => { setMeal(event.target.value); setError(''); }}>{['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Custom'].map(meal => <option key={meal}>{meal}</option>)}</select></label></div>
       {meal === 'Custom' && <label>Meal name or number<input value={customMeal} onChange={event => { setCustomMeal(event.target.value); setError(''); }} placeholder="e.g. Meal 1" maxLength={80} required/></label>}
+      </fieldset>
       {error && <p className="cal-form-error" role="alert">{error}</p>}
-      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary" type="submit">Eat and log<BankIcon name="check" size={17}/></button></div>
+      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose} disabled={submitting}>Cancel</button><button className="cal-button cal-button-primary" type="submit" disabled={submitting}>{submitting ? 'Logging…' : 'Eat and log'}<BankIcon name="check" size={17}/></button></div>
     </form>
   </>;
 }

@@ -40,6 +40,25 @@ export function prepareFoodBankPortions(
   return normalizeData({ ...emptyData(), foodBank: portions }).foodBank;
 }
 
+/** Retrying a recovered preparation accepts its identical saved IDs once. */
+export function addPreparedPortions(data: TrackerData, portions: readonly BankPortion[]): TrackerData {
+  const current = normalizeData(data);
+  const incoming = normalizeData({ ...emptyData(), foodBank: portions }).foodBank;
+  const existing = new Map(current.foodBank.map(portion => [portion.id, portion]));
+  const logged = new Set(current.entries.map(entry => entry.id));
+  const added: BankPortion[] = [];
+  for (const portion of incoming) {
+    const previous = existing.get(portion.id);
+    if (previous) {
+      if (JSON.stringify(previous) !== JSON.stringify(portion)) throw new Error('This preparation has already been saved with different amounts. Discard its recovered draft before preparing a new batch.');
+    } else {
+      if (portion.items.some(item => logged.has(item.id))) throw new Error('This preparation has already been logged. Discard its recovered draft to prepare a new batch.');
+      added.push(portion);
+    }
+  }
+  return normalizeData({ ...current, foodBank: [...current.foodBank, ...added] });
+}
+
 /** Move one stored snapshot into the journal; its item IDs prevent duplicate logging. */
 export function consumeFoodBankPortion(data: TrackerData, portionId: string, date: string, meal: string): TrackerData {
   const current = normalizeData(data);

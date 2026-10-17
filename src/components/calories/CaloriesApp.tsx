@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { addDays, dayTotals, emptyData, energyFromMacros, macrosForFood, manualMealEntry, normalizeData, settingsForDay, todayISO, type DaySettings, type Entry, type Food, type TrackerData, type BankPortion } from '../../lib/calories/model';
-import { createClient } from '../../lib/calories/client';
+import { createClient, isRecoverableNetworkError, type JournalSnapshot } from '../../lib/calories/client';
 import { effectiveBurned, emptyGarminSnapshot, type EffectiveBurned, type GarminDay, type GarminSnapshot, type GarminStatus } from '../../lib/calories/garmin';
 import { DAILY_PROTEIN_GRAMS, macroTargets, nutrientProgress } from '../../lib/calories/nutrition';
 import { adjustedBudget, calorieLedger, carryBefore, MAX_DAILY_DEFICIT } from '../../lib/calories/budget';
@@ -10,12 +10,16 @@ import FoodPhotoImport from './FoodPhotoImport';
 import MealPhotoImport from './MealPhotoImport';
 import { normalizeMealPhotoDraft, type MealPhotoDraft, type MealPhotoRequest } from '../../lib/calories/meal-photos';
 import { FoodBankView, FoodBankEditor, FoodBankConsume } from './FoodBank';
-import { consumeFoodBankPortion } from '../../lib/calories/food-bank';
+import { addPreparedPortions, consumeFoodBankPortion } from '../../lib/calories/food-bank';
+import { FormDraftProvider, useFormDrafts, clearFormDrafts, usePersistentFormDraft, DraftRestoredNotice } from './FormDrafts';
+import type { FormDraftSummary } from '../../lib/calories/form-drafts';
+import { assertCurrentRecord } from '../../lib/calories/draft-conflicts';
 import './calories.css';
+import './offline.css';
 
 type View = 'journal' | 'foods' | 'bank' | 'history';
 type Phase = 'loading' | 'setup' | 'login' | 'ready';
-type SaveState = 'saved' | 'pending' | 'saving' | 'error';
+type SaveState = 'saved' | 'pending' | 'saving' | 'device' | 'offline' | 'error';
 type ModalState = { type: 'entry'; entry?: Entry; foodId?: string } | { type: 'food'; food?: Food; returnToLog?: boolean } | { type: 'targets' } | { type: 'transfer' } | { type: 'garmin' } | { type: 'bank-prepare' } | { type: 'bank-consume'; portion: BankPortion } | null;
 type IconName = 'leaf' | 'plus' | 'left' | 'right' | 'close' | 'edit' | 'trash' | 'settings' | 'download' | 'lock' | 'logout' | 'check' | 'search' | 'calendar' | 'arrow' | 'book' | 'watch' | 'refresh';
 
@@ -77,7 +81,6 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
   const [phase, setPhase] = useState<Phase>('loading');
   const [data, setData] = useState<TrackerData>(emptyData);
   const dataRef = useRef(data);
-  const savedData = useRef(data);
   const [view, setView] = useState<View>('journal');
   const [date, setDate] = useState(todayISO);
   const [currentDay, setCurrentDay] = useState(todayISO);
@@ -91,6 +94,9 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
   const [notice, setNotice] = useState('');
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const [saveError, setSaveError] = useState('');
+  const [offline, setOffline] = useState(false);
+  const [journalScope, setJournalScope] = useState<string | null>(null);
+  const [recoveryNotice, setRecoveryNotice] = useState('');
   const [garmin, setGarmin] = useState<GarminSnapshot>(emptyGarminSnapshot);
   const [garminLoading, setGarminLoading] = useState(false);
   const [garminLoadError, setGarminLoadError] = useState('');
@@ -111,6 +117,12 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
   const refreshing = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
+  const localWork = useRef<Promise<void>>(Promise.resolve());
+  const localWrites = useRef(0);
+  const changeVersion = useRef(0);
+  const journalVersion = useRef<string | undefined>(undefined);
+  const deferredJournal = useRef<{ snapshot: JournalSnapshot; version: number } | null>(null);
+  const lastLocalError = useRef('');
 
   useEffect(() => {
     let dayTimer: ReturnType<typeof setTimeout>;
@@ -161,27 +173,46 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
     } finally { if (scope === garminSessionScope.current) { disconnectingGarmin.current = false; if (mounted.current) setGarminDisconnecting(false); } }
   }
 
+  function acceptJournal(snapshot: JournalSnapshot, expectedChange = changeVersion.current, localStage = false) {
+    setOffline(snapshot.offline);
+    setJournalScope(client.getJournalScope());
+    blockedSave.current = Boolean(snapshot.conflict);
+    setSaveError(snapshot.conflict ?? '');
+    if (!localStage && modalRef.current) {
+      deferredJournal.current = { snapshot, version: expectedChange };
+    } else if (changeVersion.current === expectedChange) {
+      deferredJournal.current = null;
+      journalVersion.current = snapshot.localVersion;
+      dataRef.current = snapshot.data;
+      setData(snapshot.data);
+      queue.current = snapshot.pending ? snapshot.data : null;
+    }
+    setSaveState(snapshot.conflict ? 'error' : snapshot.offline ? 'offline' : queue.current ? 'device' : 'saved');
+  }
+
+  function scheduleSync() {
+    if (timer.current) clearTimeout(timer.current);
+    if (!blockedSave.current && navigator.onLine !== false) timer.current = setTimeout(() => { void flushSave(); }, 500);
+  }
+
   async function loadData() {
-    const loaded = await client.load();
-    dataRef.current = loaded;
-    savedData.current = loaded;
-    setData(loaded);
-    queue.current = null;
-    blockedSave.current = false;
-    setSaveState('saved');
-    setSaveError('');
+    const snapshot = await client.openJournal();
+    acceptJournal(snapshot);
+    const cachedGarmin = client.getCachedGarmin();
+    if (cachedGarmin) setGarmin(cachedGarmin);
     setPhase('ready');
     if (phaseRef.current === 'ready') void refreshGarmin();
+    if (snapshot.pending && !snapshot.offline && !snapshot.conflict) scheduleSync();
   }
 
   async function reloadSavedData() {
-    if (saving.current || refreshing.current) { setSaveError('Wait for the current save or refresh to finish before reloading.'); return; }
+    if (saving.current || refreshing.current || localWrites.current) { setSaveError('Wait for the current save or refresh to finish before reloading.'); return; }
     if (!window.confirm('Reload the saved journal? Unsaved changes on this device will be discarded.')) return;
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
     blockedSave.current = true;
     setModal(null);
     setPhase('loading');
-    try { await loadData(); }
+    try { acceptJournal(await client.discardJournalChanges()); setPhase('ready'); }
     catch (error) { setPhase('ready'); setSaveState('error'); setSaveError(errorMessage(error)); }
   }
 
@@ -211,6 +242,12 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
 
   useEffect(() => {
     if (!modal && phase === 'ready' && deferredGarmin.current) { setGarmin(deferredGarmin.current); deferredGarmin.current = null; }
+    if (!modal && phase === 'ready' && deferredJournal.current && !localWrites.current && !blockedSave.current) {
+      const deferred = deferredJournal.current;
+      deferredJournal.current = null;
+      if (changeVersion.current === deferred.version) acceptJournal(deferred.snapshot, deferred.version, true);
+      else scheduleSync();
+    }
   }, [modal, phase]);
 
   useEffect(() => {
@@ -226,40 +263,30 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
         if (active && !valid) {
           setModal(null);
           setPhase('login');
-          setNotice(queue.current ? 'Your session has ended. Sign in again to continue. Unsaved changes are still available to export below.' : 'Your session has ended. Please sign in again.');
-        } else if (active && refreshData && !queue.current && !saving.current && !blockedSave.current && !modalRef.current) {
-          // Hold autosaves during the read so a new draft cannot overwrite a newer cloud revision.
-          refreshing.current = true;
-          const baseline = savedData.current;
-          try {
-            const latest = await client.load();
-            if (!active) return;
-            if (queue.current || modalRef.current) {
-              if (JSON.stringify(latest) !== JSON.stringify(baseline)) {
-                blockedSave.current = true; setSaveState('error');
-                setSaveError('Another device changed your journal while you were editing. Export any unsaved changes before reloading the saved data.');
-              }
-            } else {
-              dataRef.current = latest; savedData.current = latest; setData(latest);
-            }
-          } finally {
-            refreshing.current = false;
-            if (queue.current && !blockedSave.current) void flushSave();
-          }
+          setNotice('Your session has ended. Sign in again to recover your saved device drafts.');
+        } else if (active && (refreshData || queue.current) && !modalRef.current) {
+          await flushSave();
         }
-      } catch { /* A temporary network failure does not expose data to another user or discard a draft. */ }
+      } catch (error) {
+        if (active && !isRecoverableNetworkError(error)) {
+          setModal(null); setPhase('login'); setNotice(errorMessage(error));
+        }
+      }
       finally { checking = false; }
     }
-    const sessionTimer = setInterval(() => { void checkSession(); }, 60_000);
+    const sessionTimer = setInterval(() => { void checkSession(); }, 30_000);
     const onFocus = () => { void checkSession(true); };
     window.addEventListener('focus', onFocus);
+    window.addEventListener('online', onFocus);
+    const onOffline = () => { setOffline(true); if (!blockedSave.current) setSaveState('offline'); };
+    window.addEventListener('offline', onOffline);
     document.addEventListener('visibilitychange', onFocus);
-    return () => { active = false; clearInterval(sessionTimer); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onFocus); };
+    return () => { active = false; clearInterval(sessionTimer); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onFocus); window.removeEventListener('offline', onOffline); document.removeEventListener('visibilitychange', onFocus); };
   }, [phase]);
 
   useEffect(() => {
     function preventUnsavedExit(event: BeforeUnloadEvent) {
-      if (queue.current || saving.current) { event.preventDefault(); event.returnValue = ''; }
+      if (localWrites.current) { event.preventDefault(); event.returnValue = ''; }
     }
     window.addEventListener('beforeunload', preventUnsavedExit);
     return () => window.removeEventListener('beforeunload', preventUnsavedExit);
@@ -270,58 +297,62 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
     if (saving.current) return false;
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
     saving.current = true;
-    setSaveState('saving');
+    await localWork.current;
+    const version = changeVersion.current;
+    if (blockedSave.current) { saving.current = false; return false; }
+    if (navigator.onLine !== false) setSaveState('saving');
     try {
-      while (queue.current) {
-        const pending = queue.current;
-        queue.current = null;
-        try { await client.save(pending); savedData.current = pending; }
-        catch (error) { if (!queue.current) queue.current = pending; throw error; }
-      }
-      if (mounted.current) { setSaveState('saved'); setSaveError(''); }
-      return true;
+      const snapshot = await client.syncJournal();
+      if (mounted.current) acceptJournal(snapshot, version);
+      return !snapshot.pending && !snapshot.conflict;
     } catch (error) {
       blockedSave.current = true;
       if (mounted.current) { setSaveState('error'); setSaveError(errorMessage(error)); }
+      if (!client.getJournalScope()) { setModal(null); setPhase('login'); setNotice(errorMessage(error)); }
       return false;
-    } finally { saving.current = false; }
+    } finally {
+      saving.current = false;
+      if (changeVersion.current !== version && queue.current && !blockedSave.current) scheduleSync();
+    }
   }
 
-  function updateData(transform: (current: TrackerData) => TrackerData) {
-    const next = transform(dataRef.current);
-    dataRef.current = next;
-    setData(next);
-    queue.current = next;
-    setSaveState(blockedSave.current ? 'error' : 'pending');
-    if (timer.current) clearTimeout(timer.current);
-    if (!blockedSave.current && !refreshing.current) timer.current = setTimeout(() => { void flushSave(); }, 500);
+  function updateData(transform: (current: TrackerData) => TrackerData): Promise<boolean> {
+    localWrites.current++;
+    const work = localWork.current.then(async () => {
+      let staging = false;
+      try {
+        const next = transform(dataRef.current);
+        const version = ++changeVersion.current;
+        queue.current = next; setSaveState('pending');
+        staging = true;
+        const snapshot = await client.stageJournal(next, journalVersion.current);
+        acceptJournal(snapshot, version, true);
+        if (!snapshot.conflict) scheduleSync();
+        return true;
+      } catch (error) {
+        lastLocalError.current = errorMessage(error);
+        if (staging) { blockedSave.current = true; setSaveState('error'); setSaveError(errorMessage(error)); }
+        return false;
+      } finally { localWrites.current--; }
+    });
+    localWork.current = work.then(() => {});
+    return work;
   }
 
   async function signIn(event: FormEvent) {
     event.preventDefault();
     setBusy(true); setNotice('');
     try {
-      const draft = queue.current;
-      const baseline = savedData.current;
       await client.signIn(email.trim(), password, remember);
       setPassword('');
-      if (draft) {
-        const stored = await client.load();
-        dataRef.current = draft; setData(draft); queue.current = draft; setPhase('ready');
-        if (JSON.stringify(stored) === JSON.stringify(baseline)) {
-          blockedSave.current = false; setSaveError(''); setSaveState('pending'); void flushSave();
-        } else {
-          blockedSave.current = true; setSaveState('error');
-          setSaveError('Another device changed your saved journal. Export your unsaved changes before reloading the saved data.');
-        }
-      } else await loadData();
+      await loadData();
     }
     catch (error) { setNotice(errorMessage(error)); }
     finally { setBusy(false); }
   }
 
   async function signOut() {
-    if (saving.current) { setSaveError('Please wait for the current save to finish before signing out.'); return; }
+    if (saving.current || localWrites.current) { setSaveError('Please wait for the current save to finish before signing out.'); return; }
     if (queue.current || saving.current) {
       if (!(await flushSave())) {
         if (!window.confirm('Sign out and discard unsaved changes on this device? Cancel and export a backup first if you want to keep them.')) return;
@@ -330,38 +361,62 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
       }
     }
     setBusy(true);
+    if (journalScope) clearFormDrafts(journalScope);
+    deferredJournal.current = null;
     const signOutRequest = client.signOut();
     garminRequest.current++; deferredGarmin.current = null; setGarmin(emptyGarminSnapshot()); setGarminLoadError(''); setGarminLoading(false);
-    setPhase('login'); setData(emptyData()); dataRef.current = emptyData(); setNotice(''); setSaveError(''); setSaveState('saved'); blockedSave.current = false;
+    setPhase('login'); setModal(null); setData(emptyData()); dataRef.current = emptyData(); setJournalScope(null); journalVersion.current = undefined; setOffline(false); setRecoveryNotice(''); setNotice(''); setSaveError(''); setSaveState('saved'); blockedSave.current = false;
     try { const signOutNotice = await signOutRequest; setNotice(signOutNotice ?? ''); }
     catch (error) { setNotice(errorMessage(error)); }
     finally { setBusy(false); }
   }
 
-  function saveFood(food: Food) {
+  async function saveFood(food: Food, originalRecordJson: string) {
     const returnToLog = modal?.type === 'food' && modal.returnToLog;
-    updateData(current => ({ ...current, foods: current.foods.some(item => item.id === food.id) ? current.foods.map(item => item.id === food.id ? food : item) : [...current.foods, food] }));
+    if (!(await updateData(current => {
+      assertCurrentRecord(current.foods.find(item => item.id === food.id) ?? null, originalRecordJson, food, 'this library food');
+      return { ...current, foods: current.foods.some(item => item.id === food.id) ? current.foods.map(item => item.id === food.id ? food : item) : [...current.foods, food] };
+    }))) throw new Error(lastLocalError.current);
     setModal(returnToLog ? { type: 'entry', foodId: food.id } : null);
   }
 
-  function saveEntry(entry: Entry) {
-    updateData(current => ({ ...current, days: { ...current.days, [entry.date]: settingsForDay(current, entry.date) }, entries: current.entries.some(item => item.id === entry.id) ? current.entries.map(item => item.id === entry.id ? entry : item) : [...current.entries, entry] }));
+  async function saveEntry(entry: Entry, originalRecordJson: string) {
+    if (!(await updateData(current => {
+      assertCurrentRecord(current.entries.find(item => item.id === entry.id) ?? null, originalRecordJson, entry, 'this journal entry');
+      return { ...current, days: { ...current.days, [entry.date]: settingsForDay(current, entry.date) }, entries: current.entries.some(item => item.id === entry.id) ? current.entries.map(item => item.id === entry.id ? entry : item) : [...current.entries, entry] };
+    }))) throw new Error(lastLocalError.current);
     setModal(null);
   }
 
-  function saveBankPortions(portions: BankPortion[]) {
-    updateData(current => normalizeData({ ...current, foodBank: [...current.foodBank, ...portions] }));
+  async function saveBankPortions(portions: BankPortion[]) {
+    const persisted = await updateData(current => addPreparedPortions(current, portions));
+    if (!persisted) throw new Error(lastLocalError.current);
     setModal(null); setView('bank');
   }
 
-  function eatBankPortion(portionId: string, entryDate: string, meal: string) {
-    updateData(current => consumeFoodBankPortion(current, portionId, entryDate, meal));
+  async function eatBankPortion(portionId: string, entryDate: string, meal: string) {
+    if (!(await updateData(current => consumeFoodBankPortion(current, portionId, entryDate, meal)))) throw new Error('This portion could not be saved on this device. Export your unsaved journal before reloading.');
     setModal(null); openDay(entryDate);
   }
 
   function openFoodBank() { setModal(null); setView('bank'); }
 
   function openDay(nextDate: string) { setDate(nextDate); setView('journal'); setDeleteEntryId(null); }
+
+  function resumeFormDraft(draft: FormDraftSummary) {
+    setRecoveryNotice('');
+    if (draft.date) setDate(draft.date);
+    if (draft.kind === 'entry') {
+      const entry = draft.entryId ? dataRef.current.entries.find(item => item.id === draft.entryId) : undefined;
+      if (draft.entryId && !entry) { setRecoveryNotice('The entry for this draft was removed. You can discard the draft below.'); return; }
+      setView('journal'); setModal({ type: 'entry', entry, foodId: draft.foodId });
+    } else if (draft.kind === 'food') {
+      const food = draft.foodId ? dataRef.current.foods.find(item => item.id === draft.foodId) : undefined;
+      if (draft.foodId && !food) { setRecoveryNotice('The food for this draft was removed. You can discard the draft below.'); return; }
+      setView('foods'); setModal({ type: 'food', food });
+    } else if (draft.kind === 'targets') { setView('journal'); setModal({ type: 'targets' }); }
+    else { setView('bank'); setModal({ type: 'bank-prepare' }); }
+  }
 
   const dayEntries = data.entries.filter(entry => entry.date === date);
   const totals = dayTotals(dayEntries);
@@ -408,14 +463,14 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
           <button className="cal-text-button cal-auth-config" onClick={() => { setPhase('setup'); setNotice(''); }}>Connection settings</button>
         </div>}
       <p className="cal-auth-tagline">A record of your day. At your own pace.</p>
-    </div> : <>
+    </div> : <FormDraftProvider key={journalScope} scope={journalScope}>
       <header className="cal-header">
         <a href="/calories/" className="cal-brand" aria-label="Calories home"><span className="cal-brand-mark"><Icon name="leaf" size={22}/></span><span>calories<span className="cal-brand-dot">.</span></span></a>
         <nav className="cal-nav" aria-label="Journal navigation">
           {([['journal', 'Journal'], ['foods', 'Foods'], ['bank', 'Food bank'], ['history', 'History']] as [View, string][]).map(([key, label]) => <button key={key} className={view === key ? 'is-active' : ''} aria-current={view === key ? 'page' : undefined} onClick={() => { setView(key); setDeleteFoodId(null); setDeleteEntryId(null); }}>{label}</button>)}
         </nav>
         <div className="cal-header-tools">
-          <span className={`cal-sync cal-sync-${saveState}`} role="status" aria-live="polite">{saveState === 'saved' ? <Icon name="check" size={13}/> : <span className="cal-status-dot"/>}<span>{saveState === 'saved' ? 'All saved' : saveState === 'error' ? 'Not saved' : 'Saving…'}</span></span>
+          <span className={`cal-sync cal-sync-${saveState}`} role="status" aria-live="polite">{['saved', 'device', 'offline'].includes(saveState) ? <Icon name="check" size={13}/> : <span className="cal-status-dot"/>}<span>{saveState === 'saved' ? 'All saved' : saveState === 'error' ? 'Needs attention' : saveState === 'device' ? 'Saved on device' : saveState === 'offline' ? 'Offline · on device' : 'Saving…'}</span></span>
           <button className="cal-icon-button" onClick={() => setModal({ type: 'transfer' })} title="Backup & import" aria-label="Backup and import"><Icon name="download"/></button>
           <button className="cal-icon-button" onClick={() => void signOut()} title="Sign out" aria-label="Sign out" disabled={busy}><Icon name="logout"/></button>
         </div>
@@ -423,7 +478,10 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
 
       {saveError && <div className="cal-save-alert" role="alert"><div><strong>Your latest changes haven’t synced.</strong><p>{saveError}</p></div><button className="cal-button cal-button-small" onClick={() => setModal({ type: 'transfer' })}>Export unsaved</button><button className="cal-text-button" onClick={() => void reloadSavedData()} disabled={busy || saving.current || refreshing.current}>Reload saved data</button></div>}
 
+      {(offline || saveState === 'device') && !saveError && <div className="cal-offline-notice" role="status"><div><strong>{offline ? 'Your journal is available offline.' : 'Saved on this device.'}</strong><p>{queue.current ? 'Your changes are kept here and will sync when a connection is available.' : 'Showing the journal and Garmin readings saved on this device.'} Photo reading needs a connection.</p></div><button className="cal-button cal-button-small" disabled={saveState === 'saving'} onClick={() => void flushSave()}><Icon name="refresh" size={16}/>Sync now</button></div>}
+
       <main className="cal-main">
+        <DraftRecovery onResume={resumeFormDraft} notice={recoveryNotice}/>
         {view === 'journal' && <>
           <section className="cal-page-heading">
             <div><div className="cal-eyebrow">{date === currentDay ? 'TODAY’S JOURNAL' : 'DAILY JOURNAL'}</div><h1>{readableDate(date, { weekday: 'long' })}<span className="cal-heading-dot">.</span></h1><p>{readableDate(date, { day: 'numeric', month: 'long', year: 'numeric' })} <span className="cal-date-divider">/</span> One day at a time.</p></div>
@@ -516,11 +574,25 @@ export default function CaloriesApp({ clientOverride }: { clientOverride?: Retur
         : modal.type === 'food' ? <FoodEditor key={modal.food?.id ?? 'new-food'} food={modal.food} readPhotos={(input, signal) => client.readFoodPhotos(input, signal)} onSave={saveFood} onClose={() => setModal(null)}/>
         : modal.type === 'bank-prepare' ? <FoodBankEditor foods={sortedFoods} onSave={saveBankPortions} onClose={() => setModal(null)}/>
         : modal.type === 'bank-consume' ? <FoodBankConsume portion={modal.portion} date={date} onSave={(entryDate, meal) => eatBankPortion(modal.portion.id, entryDate, meal)} onClose={() => setModal(null)}/>
-        : modal.type === 'targets' ? <TargetsEditor date={date} currentDay={currentDay} settings={targets} garminDays={garmin.days} carryIn={carryIn} carryIsProvisional={carryIsProvisional} onSave={(settings, makeDefault) => { updateData(current => ({ ...current, days: { ...current.days, [date]: settings }, defaults: makeDefault ? { ...current.defaults, deficit: settings.deficit, protein: DAILY_PROTEIN_GRAMS } : current.defaults })); setModal(null); }} onClose={() => setModal(null)}/>
+        : modal.type === 'targets' ? <TargetsEditor date={date} currentDay={currentDay} settings={targets} defaultSettings={data.defaults} garminDays={garmin.days} carryIn={carryIn} carryIsProvisional={carryIsProvisional} onSave={async (settings, makeDefault, originalRecordJson, originalDefaultsJson) => {
+          if (!(await updateData(current => {
+            assertCurrentRecord(settingsForDay(current, date), originalRecordJson, settings, 'these daily targets');
+            const defaults = makeDefault ? { ...current.defaults, deficit: settings.deficit, protein: DAILY_PROTEIN_GRAMS } : current.defaults;
+            if (makeDefault) assertCurrentRecord(current.defaults, originalDefaultsJson, defaults, 'the default targets');
+            return { ...current, days: { ...current.days, [date]: settings }, defaults };
+          }))) throw new Error(lastLocalError.current);
+          setModal(null);
+        }} onClose={() => setModal(null)}/>
         : modal.type === 'garmin' ? <GarminConnection date={date} currentDay={currentDay} snapshot={garmin} loading={garminLoading || garminDisconnecting} disconnecting={garminDisconnecting} error={garminLoadError} onRefresh={() => void refreshGarmin()} onDisconnect={() => void disconnectGarmin()} onClose={() => setModal(null)}/>
-        : <TransferDialog data={data} onImport={(next) => { updateData(() => next); setModal(null); }} onClose={() => setModal(null)}/>}</Modal>}
-    </>}
+        : <TransferDialog data={queue.current ?? data} onImport={async (next) => { if (!(await updateData(() => next))) throw new Error('The backup could not be saved on this device.'); setModal(null); }} onClose={() => setModal(null)}/>}</Modal>}
+    </FormDraftProvider>}
   </div>;
+}
+
+function DraftRecovery({ onResume, notice }: { onResume: (draft: FormDraftSummary) => void; notice: string }) {
+  const { drafts, discard } = useFormDrafts();
+  if (!drafts.length) return null;
+  return <section className="cal-draft-recovery" aria-label="Unfinished drafts"><div><strong>Pick up where you left off</strong><p>Your unfinished forms are saved on this device.</p></div>{notice && <p role="status">{notice}</p>}<ul>{drafts.map(draft => <li key={draft.key}><span>{draft.label}</span><div><button className="cal-text-button" onClick={() => onResume(draft)}>Resume<span className="cal-sr-only"> {draft.label}</span></button><button className="cal-icon-button" onClick={() => discard(draft.key)} aria-label={`Discard ${draft.label} draft`}><Icon name="close" size={16}/></button></div></li>)}</ul></section>;
 }
 
 function MacroProgressRow({ name, consumed, target, tone }: { name: string; consumed: number; target: number; tone: 'protein' | 'carbs' | 'fat' | 'fiber' }) {
@@ -567,20 +639,35 @@ function NumericField({ label, value, onChange, unit = 'g', min = 0, required = 
   return <label>{label}<span className="cal-unit-input"><input type="number" inputMode="decimal" value={value} onChange={event => onChange(event.target.value)} min={min} max={100000000} step="any" required={required} aria-describedby={describedBy}/><span>{unit}</span></span></label>;
 }
 
-function EntryEditor({ entry, initialFoodId, foods, date, onSave, readMealPhoto, onAddFood, onFoodBank, bankCount, onClose }: { entry?: Entry; initialFoodId?: string; foods: Food[]; date: string; onSave: (entry: Entry) => void; readMealPhoto: (input: MealPhotoRequest, signal: AbortSignal) => Promise<MealPhotoDraft>; onAddFood: () => void; onFoodBank: () => void; bankCount: number; onClose: () => void }) {
+function EntryEditor({ entry, initialFoodId, foods, date, onSave, readMealPhoto, onAddFood, onFoodBank, bankCount, onClose }: { entry?: Entry; initialFoodId?: string; foods: Food[]; date: string; onSave: (entry: Entry, originalRecordJson: string) => void | Promise<void>; readMealPhoto: (input: MealPhotoRequest, signal: AbortSignal) => Promise<MealPhotoDraft>; onAddFood: () => void; onFoodBank: () => void; bankCount: number; onClose: () => void }) {
   const manualEditing = entry?.source === 'manual' || Boolean(entry && entry.foodId === `manual:${entry.id}`);
-  const [mode, setMode] = useState<'library' | 'manual'>(entry ? manualEditing ? 'manual' : 'library' : foods.length ? 'library' : 'manual');
   const initialFood = foods.find(food => food.id === (manualEditing ? initialFoodId : entry?.foodId ?? initialFoodId)) ?? foods[0];
-  const [foodId, setFoodId] = useState(manualEditing ? '' : entry ? entry.foodId : initialFood?.id ?? '');
-  const [foodFilter, setFoodFilter] = useState('');
-  const [quantity, setQuantity] = useState(String(!manualEditing && entry ? entry.quantity : initialFood?.baseQuantity ?? 100));
-  const [manualName, setManualName] = useState(manualEditing ? entry?.foodName ?? '' : '');
-  const [photoBusy, setPhotoBusy] = useState(false);
-  const [manualNutrients, setManualNutrients] = useState({ protein: manualEditing ? String(entry?.protein ?? '') : '', carbs: manualEditing ? String(entry?.carbs ?? '') : '', fat: manualEditing ? String(entry?.fat ?? '') : '', fiber: manualEditing ? String(entry?.fiber ?? '') : '' });
   const standardMeals = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
-  const [mealChoice, setMealChoice] = useState(entry ? (standardMeals.includes(entry.meal) ? entry.meal : 'Custom') : 'Breakfast');
-  const [customMeal, setCustomMeal] = useState(entry?.meal ?? '');
-  const [entryDate, setEntryDate] = useState(entry?.date ?? date);
+  const form = usePersistentFormDraft(entry ? `entry:${entry.id}` : 'entry:new', {
+    draftEntryId: entry?.id ?? newId(),
+    originalRecordJson: JSON.stringify(entry ?? null),
+    mode: (entry ? manualEditing ? 'manual' : 'library' : foods.length ? 'library' : 'manual') as 'library' | 'manual',
+    foodId: manualEditing ? '' : entry ? entry.foodId : initialFood?.id ?? '', foodFilter: '',
+    quantity: String(!manualEditing && entry ? entry.quantity : initialFood?.baseQuantity ?? 100),
+    manualName: manualEditing ? entry?.foodName ?? '' : '',
+    manualNutrients: { protein: manualEditing ? String(entry?.protein ?? '') : '', carbs: manualEditing ? String(entry?.carbs ?? '') : '', fat: manualEditing ? String(entry?.fat ?? '') : '', fiber: manualEditing ? String(entry?.fiber ?? '') : '' },
+    mealChoice: entry ? (standardMeals.includes(entry.meal) ? entry.meal : 'Custom') : 'Breakfast', customMeal: entry?.meal ?? '', entryDate: entry?.date ?? date,
+  }, value => ({ kind: 'entry', label: entry ? `Edit ${entry.foodName}` : value.manualName.trim() || 'New food entry', ...(value.entryDate ? { date: value.entryDate } : {}), ...(entry ? { entryId: entry.id } : value.mode === 'library' && value.foodId ? { foodId: value.foodId } : {}) }));
+  useEffect(() => {
+    const explicitFood = !entry && initialFoodId ? foods.find(food => food.id === initialFoodId) : undefined;
+    if (explicitFood && form.draft.mode === 'library' && form.draft.foodId !== explicitFood.id) form.setDraft(current => ({ ...current, foodId: explicitFood.id, foodFilter: '', quantity: String(explicitFood.baseQuantity) }));
+  }, [entry?.id, initialFoodId]);
+  const [mode, setMode] = form.field('mode');
+  const [foodId, setFoodId] = form.field('foodId');
+  const [foodFilter, setFoodFilter] = form.field('foodFilter');
+  const [quantity, setQuantity] = form.field('quantity');
+  const [manualName, setManualName] = form.field('manualName');
+  const [manualNutrients, setManualNutrients] = form.field('manualNutrients');
+  const [mealChoice, setMealChoice] = form.field('mealChoice');
+  const [customMeal, setCustomMeal] = form.field('customMeal');
+  const [entryDate, setEntryDate] = form.field('entryDate');
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   // Only a library entry contributes its original nutrient snapshot to the food picker.
   const savedFood: Food | undefined = entry && !manualEditing ? { id: entry.foodId, name: entry.foodName, baseQuantity: entry.quantity, unit: entry.unit, state: entry.state, carbs: entry.carbs, protein: entry.protein, fat: entry.fat, fiber: entry.fiber, calories: entry.calories } : undefined;
@@ -617,28 +704,35 @@ function EntryEditor({ entry, initialFoodId, foods, date, onSave, readMealPhoto,
     setError('');
   }
   function changeManualNutrient(key: keyof typeof manualNutrients, value: string) { setManualNutrients(current => ({ ...current, [key]: value })); setError(''); }
-  function submit(event: FormEvent) {
+  function closeEditor() { form.clearDraft(); onClose(); }
+  async function submit(event: FormEvent) {
     event.preventDefault();
-    if (photoBusy) return;
+    if (photoBusy || submitting) return;
     const meal = mealChoice === 'Custom' ? customMeal.trim() : mealChoice;
     if (!meal) { setError('Add a meal name or number.'); return; }
     if (mode === 'manual') {
       if (!manualName.trim()) { setError('Give your estimated meal a name.'); return; }
       if (Object.values(manualNutrients).some(value => !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 1e8) || !Number.isFinite(manualEnergy) || manualEnergy > 1e8) { setError('Enter finite, non-negative nutrient totals. Each value and the calculated energy must be no more than 100,000,000.'); return; }
-      try { onSave(manualMealEntry({ id: entry?.id ?? newId(), date: entryDate, meal, name: manualName.trim(), protein: Number(manualNutrients.protein), carbs: Number(manualNutrients.carbs), fat: Number(manualNutrients.fat), fiber: Number(manualNutrients.fiber) })); }
+      setSubmitting(true);
+      try { await onSave(manualMealEntry({ id: form.draft.draftEntryId, date: entryDate, meal, name: manualName.trim(), protein: Number(manualNutrients.protein), carbs: Number(manualNutrients.carbs), fat: Number(manualNutrients.fat), fiber: Number(manualNutrients.fiber) }), form.draft.originalRecordJson); form.clearDraft(); }
       catch (error) { setError(errorMessage(error)); }
+      finally { setSubmitting(false); }
       return;
     }
     if (!selectedFood || !preview || !Number.isFinite(Number(quantity)) || Number(quantity) <= 0 || Number(quantity) > 1e8) { setError('Choose a food and a quantity greater than zero.'); return; }
     // A fresh library object removes a manual source flag when the entry changes modes.
-    onSave({ id: entry?.id ?? newId(), date: entryDate, meal, foodId: selectedFood.id, foodName: selectedFood.name, quantity: Number(quantity), unit: selectedFood.unit, state: selectedFood.state, ...preview });
+    setSubmitting(true);
+    try { await onSave({ id: form.draft.draftEntryId, date: entryDate, meal, foodId: selectedFood.id, foodName: selectedFood.name, quantity: Number(quantity), unit: selectedFood.unit, state: selectedFood.state, ...preview }, form.draft.originalRecordJson); form.clearDraft(); }
+    catch (error) { setError(errorMessage(error)); }
+    finally { setSubmitting(false); }
   }
   return <>
-    <ModalHeader title={entry ? 'Edit your entry' : 'What’s on the menu?'} eyebrow={entry ? 'DAILY JOURNAL' : 'LOG A FOOD'} onClose={onClose}/>
+    <ModalHeader title={entry ? 'Edit your entry' : 'What’s on the menu?'} eyebrow={entry ? 'DAILY JOURNAL' : 'LOG A FOOD'} onClose={closeEditor}/>
     <form className="cal-form" onSubmit={submit}>
-      <div className={`cal-entry-mode-switch${!entry && bankCount ? ' cal-entry-mode-with-bank' : ''}`} role="group" aria-label="Entry method"><button type="button" className={mode === 'library' ? 'is-active' : ''} aria-pressed={mode === 'library'} onClick={() => changeMode('library')}>Food library</button><button type="button" className={mode === 'manual' ? 'is-active' : ''} aria-pressed={mode === 'manual'} onClick={() => changeMode('manual')}>Manual estimate</button>{!entry && bankCount > 0 && <button type="button" onClick={onFoodBank}>Food bank ({bankCount})</button>}</div>
-      {mode === 'manual' && <MealPhotoImport readPhoto={readMealPhoto} description={manualName} onDraft={applyMealPhoto} onBusyChange={setPhotoBusy}/>}
-      <fieldset className="cal-form cal-food-editor-fields" disabled={photoBusy}>
+      <DraftRestoredNotice {...form} disabled={photoBusy || submitting} discardDraft={() => { form.discardDraft(); setError(''); }}/>
+      <div className={`cal-entry-mode-switch${!entry && bankCount ? ' cal-entry-mode-with-bank' : ''}`} role="group" aria-label="Entry method"><button type="button" disabled={submitting} className={mode === 'library' ? 'is-active' : ''} aria-pressed={mode === 'library'} onClick={() => changeMode('library')}>Food library</button><button type="button" disabled={submitting} className={mode === 'manual' ? 'is-active' : ''} aria-pressed={mode === 'manual'} onClick={() => changeMode('manual')}>Manual estimate</button>{!entry && bankCount > 0 && <button type="button" disabled={submitting} onClick={onFoodBank}>Food bank ({bankCount})</button>}</div>
+      {mode === 'manual' && <fieldset className="cal-food-editor-fields" disabled={submitting}><MealPhotoImport readPhoto={readMealPhoto} description={manualName} onDraft={applyMealPhoto} onBusyChange={setPhotoBusy}/></fieldset>}
+      <fieldset className="cal-form cal-food-editor-fields" disabled={photoBusy || submitting}>
       {mode === 'library' ? <>
         <div className="cal-food-picker" role="group" aria-labelledby="cal-entry-food-label"><label id="cal-entry-food-label" htmlFor="cal-entry-food-filter">Food</label><div className="cal-food-picker-controls"><input id="cal-entry-food-filter" type="text" aria-label="Filter foods" aria-describedby="cal-entry-food-matches" value={foodFilter} onChange={event => filterFoods(event.target.value)} placeholder="Type part of a food name" autoComplete="off" autoCapitalize="none" spellCheck={false} autoFocus/><select aria-label="Food" aria-describedby="cal-entry-food-matches" value={foodId} onChange={event => { const food = filteredFoods.find(item => item.id === event.target.value); setFoodId(food?.id ?? ''); if (food) setQuantity(String(food.baseQuantity)); setError(''); }} required disabled={filteredFoods.length === 0}>{filteredFoods.length === 0 && <option value="" disabled>No matching foods</option>}{filteredFoods.map(food => <option key={food.id} value={food.id}>{food.name}{food.id === savedFood?.id ? ' (saved entry)' : ''} · {food.state}</option>)}</select></div><small className="cal-field-hint" id="cal-entry-food-matches" role="status">{filteredFoods.length === 0 ? foods.length === 0 && !savedFood ? 'Your library is empty. Add a food below or choose Manual estimate.' : 'No matching foods. Try another name or add a food below.' : foodFilter.trim() ? `${filteredFoods.length} matching ${filteredFoods.length === 1 ? 'food' : 'foods'}` : 'Type to filter the food list.'}</small></div>
         <button className="cal-text-button cal-add-food-inline" type="button" onClick={onAddFood}><Icon name="plus" size={15}/>Add a new food to your library</button>
@@ -653,45 +747,52 @@ function EntryEditor({ entry, initialFoodId, foods, date, onSave, readMealPhoto,
       {mode === 'manual' ? <div className="cal-budget-preview" aria-live="polite"><span>Estimated energy for this meal</span><strong><output aria-label="Estimated meal energy">{number(manualEnergy, 1)}</output> kcal</strong><p>4 × protein + 4 × carbohydrate + 9 × fat. Fibre is tracked separately.</p></div> : preview && <div className="cal-entry-preview"><div><span>This entry</span><strong>{number(preview.calories)} <small>kcal</small></strong></div><div className="cal-preview-macros">{([['Protein', preview.protein], ['Carbs', preview.carbs], ['Fat', preview.fat], ['Fibre', preview.fiber]] as const).map(([name, amount]) => <span key={name}>{name}<strong>{number(amount, 1)} g</strong></span>)}</div><p>{selectedFood?.state} · {entry && !manualEditing && foodId === entry.foodId ? 'Uses nutrition saved with this entry.' : `Calculated from your food’s values per ${number(selectedFood?.baseQuantity ?? 0, 2)} ${selectedFood?.unit}.`}</p></div>}
       </fieldset>
       {error && <p className="cal-form-error" role="alert">{error}</p>}
-      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary" disabled={photoBusy || (mode === 'library' && !selectedFood)}>{entry ? 'Save changes' : 'Add to journal'}<Icon name="check" size={17}/></button></div>
+      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={closeEditor} disabled={submitting}>Cancel</button><button className="cal-button cal-button-primary" disabled={submitting || photoBusy || (mode === 'library' && !selectedFood)}>{submitting ? 'Saving…' : entry ? 'Save changes' : 'Add to journal'}<Icon name="check" size={17}/></button></div>
     </form>
   </>;
 }
 
-function FoodEditor({ food, readPhotos, onSave, onClose }: { food?: Food; readPhotos: (input: FoodPhotoRequest, signal: AbortSignal) => Promise<FoodPhotoDraft>; onSave: (food: Food) => void; onClose: () => void }) {
-  const [name, setName] = useState(food?.name ?? '');
-  const [baseQuantity, setBaseQuantity] = useState(String(food?.baseQuantity ?? 100));
-  const [unit, setUnit] = useState<Food['unit'] | ''>(food?.unit ?? 'g');
-  const [state, setState] = useState<Food['state']>(food?.state ?? 'As served');
-  const [nutrients, setNutrients] = useState({ carbs: String(food?.carbs ?? ''), protein: String(food?.protein ?? ''), fat: String(food?.fat ?? ''), fiber: String(food?.fiber ?? '') });
+function FoodEditor({ food, readPhotos, onSave, onClose }: { food?: Food; readPhotos: (input: FoodPhotoRequest, signal: AbortSignal) => Promise<FoodPhotoDraft>; onSave: (food: Food, originalRecordJson: string) => void | Promise<void>; onClose: () => void }) {
+  const form = usePersistentFormDraft(food ? `food:${food.id}` : 'food:new', { draftFoodId: food?.id ?? newId(), originalRecordJson: JSON.stringify(food ?? null), name: food?.name ?? '', baseQuantity: String(food?.baseQuantity ?? 100), unit: (food?.unit ?? 'g') as Food['unit'] | '', state: (food?.state ?? 'As served') as Food['state'], nutrients: { carbs: String(food?.carbs ?? ''), protein: String(food?.protein ?? ''), fat: String(food?.fat ?? ''), fiber: String(food?.fiber ?? '') }, importedLabel: false }, value => ({ kind: 'food', label: value.name.trim() || 'New library food', ...(food ? { foodId: food.id } : {}) }));
+  const [name, setName] = form.field('name');
+  const [baseQuantity, setBaseQuantity] = form.field('baseQuantity');
+  const [unit, setUnit] = form.field('unit');
+  const [state, setState] = form.field('state');
+  const [nutrients, setNutrients] = form.field('nutrients');
+  const [importedLabel, setImportedLabel] = form.field('importedLabel');
   const hasNutrients = Object.values(nutrients).some(value => value.trim() !== '');
   const calories = energyFromMacros({ carbs: Math.max(0, Number(nutrients.carbs) || 0), protein: Math.max(0, Number(nutrients.protein) || 0), fat: Math.max(0, Number(nutrients.fat) || 0), fiber: Math.max(0, Number(nutrients.fiber) || 0) });
   const [error, setError] = useState('');
   const [photoBusy, setPhotoBusy] = useState(false);
-  const [photoDraft, setPhotoDraft] = useState<FoodPhotoDraft | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   function applyPhotos(raw: FoodPhotoDraft) {
     const draft = normalizeFoodPhotoDraft(raw);
     setName(draft.name ?? ''); setBaseQuantity(draft.baseQuantity === null ? '' : String(draft.baseQuantity));
     setUnit(draft.unit ?? ''); setState(draft.state ?? 'As served');
     setNutrients({ protein: draft.protein === null ? '' : String(draft.protein), carbs: draft.carbs === null ? '' : String(draft.carbs), fat: draft.fat === null ? '' : String(draft.fat), fiber: draft.fiber === null ? '' : String(draft.fiber) });
-    setPhotoDraft(draft); setError('');
+    setImportedLabel(true); setError('');
   }
   function nutrient(key: keyof typeof nutrients, value: string) { setNutrients(current => ({ ...current, [key]: value })); }
-  function submit(event: FormEvent) {
+  function closeEditor() { form.clearDraft(); onClose(); }
+  async function submit(event: FormEvent) {
     event.preventDefault();
-    if (photoBusy) return;
+    if (photoBusy || submitting) return;
     if (!name.trim() || !unit || !Number.isFinite(Number(baseQuantity)) || Number(baseQuantity) <= 0 || !Number.isFinite(calories) || calories > 1e8 || Object.values(nutrients).some(value => !Number.isFinite(Number(value)) || Number(value) < 0)) { setError('Add a food name, a label quantity greater than zero, a unit, and valid nutrition values.'); return; }
-    onSave({ id: food?.id ?? newId(), name: name.trim(), baseQuantity: Number(baseQuantity), unit, state, carbs: Number(nutrients.carbs), protein: Number(nutrients.protein), fat: Number(nutrients.fat), fiber: Number(nutrients.fiber), calories });
+    setSubmitting(true);
+    try { await onSave({ id: form.draft.draftFoodId, name: name.trim(), baseQuantity: Number(baseQuantity), unit, state, carbs: Number(nutrients.carbs), protein: Number(nutrients.protein), fat: Number(nutrients.fat), fiber: Number(nutrients.fiber), calories }, form.draft.originalRecordJson); form.clearDraft(); }
+    catch (error) { setError(errorMessage(error)); }
+    finally { setSubmitting(false); }
   }
   return <>
-    <ModalHeader title={food ? 'Edit a favourite' : 'Add an everyday food'} eyebrow="FOOD LIBRARY" onClose={onClose}/>
+    <ModalHeader title={food ? 'Edit a favourite' : 'Add an everyday food'} eyebrow="FOOD LIBRARY" onClose={closeEditor}/>
     <form className="cal-form" onSubmit={submit}>
-      {!food && <FoodPhotoImport readPhotos={readPhotos} onDraft={applyPhotos} onBusyChange={setPhotoBusy}/>}
-      <fieldset className="cal-form cal-food-editor-fields" disabled={photoBusy}>
+      <DraftRestoredNotice {...form} disabled={photoBusy || submitting} discardDraft={() => { form.discardDraft(); setError(''); }}/>
+      {!food && <fieldset className="cal-food-editor-fields" disabled={submitting}><FoodPhotoImport readPhotos={readPhotos} onDraft={applyPhotos} onBusyChange={setPhotoBusy}/></fieldset>}
+      <fieldset className="cal-form cal-food-editor-fields" disabled={photoBusy || submitting}>
         <label>Food name<input value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Greek yoghurt" required maxLength={160} autoFocus/></label>
         <div className="cal-form-grid cal-form-grid-three">
           <NumericField label="Label quantity" value={baseQuantity} onChange={setBaseQuantity} unit="" min={0.001}/>
-          <label>Unit<select value={unit} onChange={event => { const nextUnit = event.target.value as Food['unit']; setUnit(nextUnit); if (!food && !photoDraft) setBaseQuantity(nextUnit === 'piece' ? '1' : '100'); }} required><option value="" disabled>Choose unit</option><option value="g">grams (g)</option><option value="ml">millilitres (ml)</option><option value="piece">piece</option></select></label>
+          <label>Unit<select value={unit} onChange={event => { const nextUnit = event.target.value as Food['unit']; setUnit(nextUnit); if (!food && !importedLabel) setBaseQuantity(nextUnit === 'piece' ? '1' : '100'); }} required><option value="" disabled>Choose unit</option><option value="g">grams (g)</option><option value="ml">millilitres (ml)</option><option value="piece">piece</option></select></label>
           <label>State<select value={state} onChange={event => setState(event.target.value as Food['state'])}><option>As served</option><option>Raw</option><option>Cooked</option></select></label>
         </div>
         <div className="cal-form-section-label"><strong>Nutrition per {baseQuantity || '—'} {unitLabel(unit, Number(baseQuantity))}</strong><p>Enter the label’s values in grams. Leave blank for zero.</p></div>
@@ -700,16 +801,18 @@ function FoodEditor({ food, readPhotos, onSave, onClose }: { food?: Food; readPh
         {food && <p className="cal-field-hint">Changes apply to future entries. Previously logged nutrition stays as recorded.</p>}
       </fieldset>
       {error && <p className="cal-form-error" role="alert">{error}</p>}
-      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary" disabled={photoBusy}>{food ? 'Save changes' : 'Save food'}<Icon name="check" size={17}/></button></div>
+      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={closeEditor} disabled={submitting}>Cancel</button><button className="cal-button cal-button-primary" disabled={photoBusy || submitting}>{submitting ? 'Saving…' : food ? 'Save changes' : 'Save food'}<Icon name="check" size={17}/></button></div>
     </form>
   </>;
 }
 
-function TargetsEditor({ date, currentDay, settings, garminDays, carryIn, carryIsProvisional, onSave, onClose }: { date: string; currentDay: string; settings: DaySettings; garminDays: readonly GarminDay[]; carryIn: number; carryIsProvisional: boolean; onSave: (settings: DaySettings, makeDefault: boolean) => void; onClose: () => void }) {
-  const [burned, setBurned] = useState(settings.burned === 0 && settings.burnedSource !== 'manual' ? '' : String(settings.burned));
-  const [source, setSource] = useState<'manual' | 'garmin'>(settings.burnedSource ?? 'garmin');
-  const [deficit, setDeficit] = useState(String(settings.deficit));
-  const [makeDefault, setMakeDefault] = useState(false);
+function TargetsEditor({ date, currentDay, settings, defaultSettings, garminDays, carryIn, carryIsProvisional, onSave, onClose }: { date: string; currentDay: string; settings: DaySettings; defaultSettings?: DaySettings; garminDays: readonly GarminDay[]; carryIn: number; carryIsProvisional: boolean; onSave: (settings: DaySettings, makeDefault: boolean, originalRecordJson: string, originalDefaultsJson: string) => void | Promise<void>; onClose: () => void }) {
+  const form = usePersistentFormDraft(`targets:${date}`, { originalRecordJson: JSON.stringify(settings), originalDefaultsJson: JSON.stringify(defaultSettings ?? null), burned: settings.burned === 0 && settings.burnedSource !== 'manual' ? '' : String(settings.burned), source: (settings.burnedSource ?? 'garmin') as 'manual' | 'garmin', deficit: String(settings.deficit), makeDefault: false }, { kind: 'targets', label: `Targets for ${readableDate(date, { day: 'numeric', month: 'short', year: 'numeric' })}`, date });
+  const [burned, setBurned] = form.field('burned');
+  const [source, setSource] = form.field('source');
+  const [deficit, setDeficit] = form.field('deficit');
+  const [makeDefault, setMakeDefault] = form.field('makeDefault');
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const resolved = effectiveBurned(date, { ...settings, burned: previewNumber(burned), burnedSource: source }, garminDays, currentDay);
   const effective = resolved.burned;
@@ -717,17 +820,24 @@ function TargetsEditor({ date, currentDay, settings, garminDays, carryIn, carryI
   const previewAllowance = adjustedBudget(effective, previewDeficit, carryIn);
   const previewBudget = previewAllowance.budget;
   const nutritionTargets = macroTargets(previewBudget);
-  function submit(event: FormEvent) {
+  function closeEditor() { form.clearDraft(); onClose(); }
+  async function submit(event: FormEvent) {
     event.preventDefault();
+    if (submitting) return;
     if ([deficit, ...(source === 'manual' ? [burned] : [])].some(value => value === '' || !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 1e8)) { setError('Enter finite, non-negative values no greater than 100,000,000.'); return; }
     if (source === 'manual' && Number(deficit) > Number(burned)) { setError('For a manual estimate, the deficit target cannot be greater than calories burned.'); return; }
-    onSave({ burned: previewNumber(burned), deficit: Number(deficit), protein: DAILY_PROTEIN_GRAMS, burnedSource: source }, makeDefault);
+    setSubmitting(true);
+    try { await onSave({ burned: previewNumber(burned), deficit: Number(deficit), protein: DAILY_PROTEIN_GRAMS, burnedSource: source }, makeDefault, form.draft.originalRecordJson, form.draft.originalDefaultsJson); form.clearDraft(); }
+    catch (error) { setError(errorMessage(error)); }
+    finally { setSubmitting(false); }
   }
   return <>
-    <ModalHeader title="Your daily targets" eyebrow={readableDate(date, { day: 'numeric', month: 'long' }).toUpperCase()} onClose={onClose}/>
+    <ModalHeader title="Your daily targets" eyebrow={readableDate(date, { day: 'numeric', month: 'long' }).toUpperCase()} onClose={closeEditor}/>
     <p className="cal-modal-intro">Choose your deficit target and where calories burned comes from.</p>
     <p className="cal-target-date-hint" id="cal-deficit-date-hint">Changes apply to {readableDate(date, { day: 'numeric', month: 'long', year: 'numeric' })}. Leave the default-target option unchecked to edit only this date.</p>
     <form className="cal-form" onSubmit={submit}>
+      <DraftRestoredNotice {...form} disabled={submitting} discardDraft={() => { form.discardDraft(); setError(''); }}/>
+      <fieldset className="cal-form cal-food-editor-fields" disabled={submitting}>
       <label>Calories burned source<select value={source} onChange={event => setSource(event.target.value as 'manual' | 'garmin')}><option value="garmin">Garmin Connect (automatic)</option><option value="manual">Manual estimate / override</option></select></label>
       {source === 'garmin' ? <>
         <label>{resolved.unavailable ? 'Garmin calories burned unavailable' : resolved.restingEstimate ? 'Garmin resting estimate' : resolved.predicted ? 'Predicted calories burned' : resolved.predictionUnavailable ? 'Garmin calories burned so far' : 'Calories burned from Garmin'}<span className="cal-unit-input"><input type="text" value={resolved.unavailable ? '—' : number(resolved.burned, 1)} readOnly aria-describedby="cal-garmin-target-detail"/><span>kcal</span></span></label>
@@ -744,8 +854,9 @@ function TargetsEditor({ date, currentDay, settings, garminDays, carryIn, carryI
       {!resolved.unavailable && previewAllowance.deferredDebt > 0 && <p className="cal-macro-budget-note">If you eat this {number(previewBudget, 1)} kcal budget, {number(previewAllowance.deferredDebt, 1)} kcal of debt remains for later days.</p>}
       {nutritionTargets.budgetTooLow && <p className="cal-macro-budget-note">Current calorie budget is too low for 175 g protein and 25% fat. Carb target is 0 g.</p>}
       <label className="cal-checkbox"><input type="checkbox" checked={makeDefault} onChange={event => setMakeDefault(event.target.checked)}/><span>Use this deficit target as my default<small>Applies to days without their own saved targets. Manual calories burned applies only to this date; new days use Garmin.</small></span></label>
+      </fieldset>
       {error && <p className="cal-form-error" role="alert">{error}</p>}
-      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={onClose}>Cancel</button><button className="cal-button cal-button-primary">Save targets<Icon name="check" size={17}/></button></div>
+      <div className="cal-modal-actions"><button className="cal-button" type="button" onClick={closeEditor} disabled={submitting}>Cancel</button><button className="cal-button cal-button-primary" disabled={submitting}>{submitting ? 'Saving…' : 'Save targets'}<Icon name="check" size={17}/></button></div>
     </form>
   </>;
 }
@@ -797,7 +908,7 @@ function downloadFile(contents: string, filename: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function TransferDialog({ data, onImport, onClose }: { data: TrackerData; onImport: (data: TrackerData) => void; onClose: () => void }) {
+function TransferDialog({ data, onImport, onClose }: { data: TrackerData; onImport: (data: TrackerData) => void | Promise<void>; onClose: () => void }) {
   const [incoming, setIncoming] = useState<TrackerData | null>(null);
   const [filename, setFilename] = useState('');
   const [error, setError] = useState('');
@@ -818,5 +929,12 @@ function TransferDialog({ data, onImport, onClose }: { data: TrackerData; onImpo
     catch (error) { setError(errorMessage(error)); }
     finally { setBusy(false); }
   }
-  return <><ModalHeader title="Keep a copy of your days" eyebrow="BACKUP & IMPORT" onClose={onClose}/><p className="cal-modal-intro">Download your journal whenever you like.</p><div className="cal-transfer-option"><div><strong>Complete backup</strong><p>Foods, food bank portions, journal entries, and targets in a JSON file. Use this to restore your journal.</p></div><button className="cal-button cal-button-small" onClick={() => downloadFile(JSON.stringify(data, null, 2), `calories-backup-${exportDate}.json`, 'application/json')}><Icon name="download" size={16}/>JSON</button></div><div className="cal-transfer-option"><div><strong>Spreadsheet export</strong><p>All logged entries, quantities, and nutrition. Opens in Numbers or Google Sheets.</p></div><button className="cal-button cal-button-small" onClick={exportCSV}><Icon name="download" size={16}/>CSV</button></div><div className="cal-import-section"><h3>Restore a backup</h3><p>Choose a JSON file previously exported from this app.</p><label className="cal-file-label">{busy ? 'Reading backup…' : 'Choose JSON backup'}<input type="file" accept=".json,application/json" onChange={event => void selectFile(event.target.files?.[0])} disabled={busy}/></label>{incoming && <div className="cal-import-confirm"><strong>{filename}</strong><p>{incoming.foods.length} foods · {incoming.foodBank.length} bank portions · {incoming.entries.length} entries</p><p>This will replace your current journal, food library, food bank, and targets on every device. Export a backup first if you want to keep them.</p><button className="cal-button cal-button-danger cal-button-small" onClick={() => onImport(incoming)}>Replace journal with this backup</button></div>}{error && <p className="cal-form-error" role="alert">{error}</p>}</div><div className="cal-modal-actions"><button className="cal-button cal-button-primary" onClick={onClose}>Done</button></div></>;
+  async function restoreBackup() {
+    if (!incoming || busy) return;
+    setBusy(true); setError('');
+    try { await onImport(incoming); }
+    catch (error) { setError(errorMessage(error)); }
+    finally { setBusy(false); }
+  }
+  return <><ModalHeader title="Keep a copy of your days" eyebrow="BACKUP & IMPORT" onClose={onClose}/><p className="cal-modal-intro">Download your journal whenever you like.</p><div className="cal-transfer-option"><div><strong>Complete backup</strong><p>Foods, food bank portions, journal entries, and targets in a JSON file. Use this to restore your journal.</p></div><button className="cal-button cal-button-small" onClick={() => downloadFile(JSON.stringify(data, null, 2), `calories-backup-${exportDate}.json`, 'application/json')}><Icon name="download" size={16}/>JSON</button></div><div className="cal-transfer-option"><div><strong>Spreadsheet export</strong><p>All logged entries, quantities, and nutrition. Opens in Numbers or Google Sheets.</p></div><button className="cal-button cal-button-small" onClick={exportCSV}><Icon name="download" size={16}/>CSV</button></div><div className="cal-import-section"><h3>Restore a backup</h3><p>Choose a JSON file previously exported from this app.</p><label className="cal-file-label">{busy ? 'Reading backup…' : 'Choose JSON backup'}<input type="file" accept=".json,application/json" onChange={event => void selectFile(event.target.files?.[0])} disabled={busy}/></label>{incoming && <div className="cal-import-confirm"><strong>{filename}</strong><p>{incoming.foods.length} foods · {incoming.foodBank.length} bank portions · {incoming.entries.length} entries</p><p>This will replace your current journal, food library, food bank, and targets on every device. Export a backup first if you want to keep them.</p><button className="cal-button cal-button-danger cal-button-small" disabled={busy} onClick={() => void restoreBackup()}>Replace journal with this backup</button></div>}{error && <p className="cal-form-error" role="alert">{error}</p>}</div><div className="cal-modal-actions"><button className="cal-button cal-button-primary" onClick={onClose}>Done</button></div></>;
 }

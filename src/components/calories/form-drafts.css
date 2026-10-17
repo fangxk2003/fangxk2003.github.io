@@ -1,0 +1,2 @@
+.cal-draft-restored { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 14px; padding: 2px 12px; border: 1px solid #dce5d0; border-radius: 8px; background: #f0f4e8; color: #586e4a; font-size: 12px; line-height: 1.6; }
+.cal-draft-restored .cal-text-button { min-height: 44px; font-size: 12px; }

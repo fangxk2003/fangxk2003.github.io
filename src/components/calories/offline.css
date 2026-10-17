@@ -1,0 +1,28 @@
+.cal-offline-notice {
+  max-width: 1110px;
+  margin: 0 auto 22px;
+  padding: 16px 20px;
+  border: 1px solid #dbe3ce;
+  border-radius: 12px;
+  background: #edf1e5;
+  color: #435c3b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+.cal-offline-notice strong, .cal-draft-recovery > div > strong { font-size: 13px; font-weight: 600; }
+.cal-offline-notice p, .cal-draft-recovery p { margin: 5px 0 0; font-size: 12px; line-height: 1.65; color: #697564; }
+.cal-offline-notice > button { flex-shrink: 0; }
+.cal-sync-device, .cal-sync-offline { color: #536a46; }
+.cal-draft-recovery { padding: 18px 22px; margin-bottom: 28px; border: 1px solid #dfe4d6; border-radius: 12px; background: #fffefa; }
+.cal-draft-recovery ul { list-style: none; padding: 0; margin: 12px 0 0; }
+.cal-draft-recovery li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; font-size: 12px; border-top: 1px solid #edf0e7; }
+.cal-draft-recovery li > span { overflow-wrap: anywhere; }
+.cal-draft-recovery li > div { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+.cal-draft-recovery li button { min-height: 44px; }
+.cal-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 700px) {
+  .cal-offline-notice { margin: 0 18px 18px; padding: 14px 16px; flex-wrap: wrap; gap: 10px; }
+  .cal-draft-recovery { padding: 14px 16px; }
+}

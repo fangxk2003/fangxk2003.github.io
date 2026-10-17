@@ -70,7 +70,21 @@ Signing out clears this browser's stored tokens and attempts to revoke the curre
 
 The screenshot supplies the tracker's fields. Starting targets are a 500 kcal deficit and 175 g protein; new days use Garmin for calories burned. A date without an imported total uses the latest completed Garmin resting reading, labeled with its reference date. If Garmin has no completed reading, burned calories are unavailable rather than defaulting to 3,200 kcal. The screenshot does not include your food database or historical entries. Add the reference values from your spreadsheet through **Foods → Add food**. The import screen restores JSON backups created by this app; it does not directly import Google Sheets. Raw and cooked foods should have separate reference values; changing a food later does not rewrite nutrients already logged in your history.
 
-Use **History → Export journal → JSON** periodically to download a complete backup. The **CSV** option exports logged entries for a spreadsheet. Keep those files somewhere private. The app requires a working network connection to load and save cloud data; a failed save is shown as unsaved.
+Use **History → Export journal → JSON** periodically to download a complete backup. The **CSV** option exports logged entries for a spreadsheet. Keep those files somewhere private. After an online visit has prepared this device, the journal can reopen and accept edits offline. Cloud synchronization, sign-in and photo reading require a connection. See the recovery section below for device-only saves and conflict handling.
+
+## Device drafts and offline logging
+
+Open the updated app online once and sign in so this device can save its app files, journal and Garmin readings. After that, it can reopen offline while the previously verified session remains within its fixed 30-day deadline. Remembered sessions survive closing the app; unchecked sessions retain the existing tab-only behavior and a fresh tab still requires sign-in. Offline access cannot extend the session deadline or unlock an account that has not already loaded successfully on this device.
+
+Journal changes are written to account-scoped browser storage before an editor closes. **Saved on device** or **Offline · on device** means the local copy is available but has not necessarily reached your other device. **All saved** means the journal matches the last confirmed cloud copy. Use **Sync now**, reopen/focus the app, or reconnect while it is open to retry. Cached Garmin values retain their original import timestamps; photo reading and new Garmin imports need a connection.
+
+Text, numbers and selections in unfinished food-entry, food-library, daily-target and preparation forms are saved as you edit. Reopening shows **Pick up where you left off** with **Resume** and a discard button. Closing the browser, reloading, pressing Escape or dismissing a backdrop keeps an unfinished draft. The editor's explicit **Cancel** or close button discards it; successful local submission clears it. Photo files and API credentials are never included in form drafts. Already-filled nutrition values are ordinary editable fields and are recoverable.
+
+Reconnection reads the latest cloud revision before saving. Independent foods, entries and daily targets can merge; overlapping changes to the same record stop with a notice and keep the device copy. A food-bank portion and all entries made by consuming it are reconciled together, so an interrupted or repeated import cannot duplicate or partly consume a portion. **Export unsaved** downloads the local journal; **Reload saved data** explicitly discards local journal changes only after it successfully reads the cloud version. Export first when resolving a conflict.
+
+Explicit sign-out clears this account's journal cache, Garmin cache and unfinished forms on the device; pending journal changes require confirmation before discarding. The app caches only its static interface files, never Supabase responses, authentication endpoints or uploaded images in the service worker. A new interface version activates after all older Calories windows are closed, keeping each open app on a consistent version.
+
+Browser storage can still be cleared by you, private browsing restrictions or the operating system, so keep occasional JSON backups. Storage failures are shown instead of claiming that an edit is safely saved. Offline edits synchronize when the app is open with a valid session; they do not rely on iPhone background synchronization while the app is closed.
 
 ## Troubleshooting
 

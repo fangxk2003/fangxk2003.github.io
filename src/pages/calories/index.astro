@@ -1,5 +1,6 @@
 ---
 import CaloriesApp from '../../components/calories/CaloriesApp';
+import CaloriesOfflineShell from '../../components/calories/CaloriesOfflineShell.astro';
 ---
 <!doctype html>
 <html lang="en">
@@ -20,6 +21,7 @@ import CaloriesApp from '../../components/calories/CaloriesApp';
   </head>
   <body>
     <CaloriesApp client:load />
+    <CaloriesOfflineShell />
     <noscript><p style="padding:2rem;font-family:system-ui">Enable JavaScript to use your private calorie journal.</p></noscript>
   </body>
 </html>
